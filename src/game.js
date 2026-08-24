@@ -12,10 +12,13 @@ export const AI_TYPES = [
   { type: 'foxy', name: 'Фокси' },
 ];
 
+// sense — радиус слуха в клетках, scent — доля маршрутов патруля, ведущих в район игрока.
+// sense — радиус слуха в клетках; scent — вероятность «взять след» при смене
+// маршрута; stalkTurns — сколько ходов аниматроник упорно идёт по следу.
 export const DIFFICULTY = {
-  easy: { sense: 10, speed: 3, label: 'Лёгкая' },
-  normal: { sense: 24, speed: 4, label: 'Нормальная' },
-  nightmare: { sense: Infinity, speed: 4, label: 'Кошмар' },
+  easy: { sense: 10, speed: 3, scent: 0.012, stalkTurns: 8, label: 'Лёгкая' },
+  normal: { sense: 29, speed: 4, scent: 0.035, stalkTurns: 12, label: 'Нормальная' },
+  nightmare: { sense: Infinity, speed: 4, scent: 1, stalkTurns: 999, label: 'Кошмар' },
 };
 
 const BASE_STEPS = 3;
@@ -142,8 +145,13 @@ export class Game {
       dir: N,
       sense: diff.sense,
       speed: diff.speed,
+      scent: diff.scent,
+      stalkTurns: diff.stalkTurns,
       frozen: 0,
-      mode: 'idle',
+      mode: 'patrol',
+      plan: 1 + ((rng() * 6) | 0),
+      stalk: 0,
+      bestDist: Infinity,
       target: -1,
       targetDist: null,
       lastIdx: -1,
@@ -329,6 +337,8 @@ export class Game {
     this.emit('phase', 'ai');
     this.emit('state');
 
+    for (const a of this.ais) if (a.frozen <= 0) this._aiPlan(a);
+
     const maxSteps = Math.max(...this.ais.map((a) => a.speed));
     for (let step = 0; step < maxSteps; step++) {
       let moved = false;
@@ -361,36 +371,76 @@ export class Game {
     this.emit('state');
   }
 
-  _stepAi(a) {
+  /**
+   * Раз в ход аниматроник решает, куда он вообще идёт.
+   * hunt   — слышит игрока и идёт точно на него;
+   * search — потерял и добирается до последнего известного места;
+   * stalk  — «взял след»: не знает точки, но упорно движется в район игрока,
+   *          подновляя направление, пока не выйдет на слышимость;
+   * patrol — бродит по лабиринту и стережёт выход.
+   */
+  _aiPlan(a) {
     const cur = this.idx(a.x, a.y);
-    const senses = a.sense === Infinity || (this.distPlayer[cur] >= 0 && this.distPlayer[cur] <= a.sense);
-    let field = null;
+    const d = this.distPlayer[cur];
+    const senses = a.sense === Infinity || (d >= 0 && d <= a.sense);
 
     if (senses) {
       a.mode = 'hunt';
-      a.target = this.playerIdx();
+      a.stalk = 0;
+      a.target = -1;
       a.targetDist = null;
-      field = this.distPlayer;
-    } else if (a.target >= 0 && a.target !== cur) {
-      a.mode = 'search';
-      if (!a.targetDist) a.targetDist = bfsDist(this.maze, a.target);
-      field = a.targetDist;
-    } else {
-      // маршрут кончился — выбираем новую цель патрулирования и идём к ней
-      a.mode = 'patrol';
-      a.target = this._patrolTarget();
-      a.targetDist = bfsDist(this.maze, a.target);
-      field = a.targetDist;
+      return;
     }
 
+    if (a.mode === 'hunt') {
+      // упустил — идём туда, где он был слышен в последний раз
+      a.mode = 'search';
+      a.plan = 10;
+      a.target = this.playerIdx();
+      a.targetDist = bfsDist(this.maze, a.target);
+      return;
+    }
+
+    if (a.stalk > 0) {
+      // след остывает, только пока аниматроник не сокращает разрыв: пока он
+      // ставит новый рекорд сближения — идёт верно и погоню не бросает
+      if (d >= 0 && d < a.bestDist) a.bestDist = d;
+      else a.stalk--;
+      if (--a.plan <= 0) {
+        a.plan = 5;
+        a.target = this._cellNearPlayer();
+        a.targetDist = bfsDist(this.maze, a.target);
+      }
+      return;
+    }
+
+    if (--a.plan <= 0 || a.target < 0 || a.target === cur) {
+      a.plan = 8 + ((this.rng() * 7) | 0);
+      if (this.rng() < (a.scent || 0)) {
+        a.mode = 'stalk';
+        a.stalk = a.stalkTurns;
+        a.bestDist = d >= 0 ? d : Infinity;
+        a.target = this._cellNearPlayer();
+      } else {
+        a.mode = 'patrol';
+        a.target = this._patrolTarget();
+      }
+      a.targetDist = bfsDist(this.maze, a.target);
+    }
+  }
+
+  _stepAi(a) {
+    const field = a.mode === 'hunt' ? this.distPlayer : a.targetDist;
+
     const opts = [];
-    for (const d of DIRS) {
-      if (!this.maze.open(a.x, a.y, d)) continue;
-      const ni = this.idx(a.x + DX[d], a.y + DY[d]);
-      opts.push({ d, ni });
+    for (const dir of DIRS) {
+      if (!this.maze.open(a.x, a.y, dir)) continue;
+      const ni = this.idx(a.x + DX[dir], a.y + DY[dir]);
+      opts.push({ d: dir, ni });
     }
     if (!opts.length) return;
 
+    const cur = this.idx(a.x, a.y);
     let choice = null;
     if (field) {
       let best = field[cur];
@@ -403,11 +453,11 @@ export class Game {
       if (good.length) choice = good[(this.rng() * good.length) | 0];
     }
     if (!choice) {
-      // бродит: старается не разворачиваться назад
+      // дошёл или упёрся — бредёт дальше, стараясь не разворачиваться назад
       const fwd = opts.filter((o) => o.ni !== a.lastIdx);
       const pool = fwd.length ? fwd : opts;
       choice = pool[(this.rng() * pool.length) | 0];
-      if (a.target >= 0) { a.target = -1; a.targetDist = null; }
+      a.plan = 0;
     }
 
     a.lastIdx = cur;
@@ -416,12 +466,25 @@ export class Game {
     a.y += DY[choice.d];
   }
 
-  /** Куда пойдёт скучающий аниматроник: чаще случайный угол лабиринта, иногда — стеречь выход. */
+  /** Куда пойдёт скучающий аниматроник: чаще случайная точка, иногда — стеречь выход. */
   _patrolTarget() {
     if (this.exitRegion && this.exitRegion.length && this.rng() < 0.35) {
       return this.exitRegion[(this.rng() * this.exitRegion.length) | 0];
     }
     return (this.rng() * this.w * this.h) | 0;
+  }
+
+  /**
+   * Точка «по следу»: кольцо вокруг игрока — не его клетка, но его район.
+   * Аниматроник не знает, где игрок, но знает, куда идти.
+   */
+  _cellNearPlayer() {
+    const d = this.distPlayer;
+    if (!d) return (this.rng() * this.w * this.h) | 0;
+    const out = [];
+    for (let i = 0; i < d.length; i++) if (d[i] > 5 && d[i] <= 22) out.push(i);
+    if (!out.length) return this.playerIdx();
+    return out[(this.rng() * out.length) | 0];
   }
 
   _die(killer) {

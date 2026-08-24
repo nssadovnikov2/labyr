@@ -14,6 +14,8 @@ let game = null;
 let renderer = null;
 const sfx = new Sfx();
 sfx.setEnabled(settings.sound);
+sfx.setVolume(settings.volume / 100);
+sfx.setAmbient(settings.ambience);
 
 const el = {
   screens: $$('.screen'),
@@ -44,11 +46,25 @@ function showScreen(name) {
     hideOverlays();
     if (renderer) renderer.stop();
     sfx.stopDrone();
+    sfx.stopAmbience();
   } else if (renderer) {
     renderer.resize();
     renderer.start();
-    if (settings.sound) sfx.startDrone();
+    if (settings.sound) {
+      sfx.startDrone();
+      sfx.startAmbience(tension);
+    }
   }
+}
+
+/** 0..1 — насколько близко подобрались аниматроники. Управляет плотностью атмосферы. */
+function tension() {
+  if (!game || game.phase === 'dead' || game.phase === 'win') return 0;
+  const d = game.nearestAiDistance();
+  if (!isFinite(d)) return 0;
+  if (d <= 4) return 1;
+  if (d >= 45) return 0.05;
+  return Math.max(0.05, 1 - (d - 4) / 41);
 }
 
 function hideOverlays() {
@@ -64,6 +80,7 @@ function startGame() {
   if (!renderer) renderer = new Renderer(el.canvas, el.entities);
   if (game) game.abort();
   game = new Game(settings);
+  dangerLevel = 0;
   renderer.setZoom(settings.zoom);
   renderer.attach(game);
   wireGame(game);
@@ -90,6 +107,7 @@ function wireGame(g) {
   g.on('win', (info) => showWin(info));
 }
 
+let dangerLevel = 0;
 function updateHud() {
   if (!game) return;
   el.turn.textContent = game.turn;
@@ -115,6 +133,8 @@ function updateHud() {
   if (d <= 4) { level = 3; text = 'ОНИ ЗДЕСЬ'; }
   else if (d <= 8) { level = 2; text = 'ОНИ РЯДОМ'; }
   else if (d <= 15) { level = 1; text = 'ОНИ БЛИЗКО'; }
+  if (level > dangerLevel && game.phase !== 'dead') sfx.stinger(level);
+  dangerLevel = level;
   el.danger.hidden = level === 0;
   el.danger.textContent = text;
   el.danger.dataset.level = level;
@@ -158,6 +178,7 @@ function toast(text, color) {
 function showDeath(killer) {
   sfx.scream();
   sfx.stopDrone();
+  sfx.stopAmbience();
   renderer.kick(3);
   el.jumpscare.className = 'jumpscare type-' + (killer ? killer.type : 'freddy');
   el.jumpscare.innerHTML = animatronicMarkup();
@@ -170,6 +191,7 @@ function showDeath(killer) {
 function showWin(info) {
   sfx.win();
   sfx.stopDrone();
+  sfx.stopAmbience();
   el.winSub.textContent = `Ты выбрался за ${info.turns} ${plural(info.turns, 'ход', 'хода', 'ходов')}. Лабиринт ${game.w}×${game.h}, сид ${game.seedText}.`;
   el.win.hidden = false;
 }
@@ -187,6 +209,9 @@ function syncOutputs() {
   f.querySelector('[name="fogRadiusOut"]').value = f.querySelector('[name="fogRadius"]').value;
   f.querySelector('[name="aiOut"]').value = f.querySelector('[name="ai"]').value;
   f.querySelector('[name="braidOut"]').value = f.querySelector('[name="braid"]').value;
+  f.querySelector('[name="volumeOut"]').value = f.querySelector('[name="volume"]').value;
+  f.querySelector('[name="volume"]').disabled = !f.querySelector('[name="sound"]').checked;
+  f.querySelector('[name="ambience"]').disabled = !f.querySelector('[name="sound"]').checked;
   f.querySelector('[name="fogRadius"]').disabled = !f.querySelector('[name="fog"]').checked;
 }
 el.form.addEventListener('input', syncOutputs);
@@ -203,6 +228,9 @@ function applySettings() {
   settings = readForm(el.form);
   saveSettings(settings);
   sfx.setEnabled(settings.sound);
+  sfx.setVolume(settings.volume / 100);
+  sfx.setAmbient(settings.ambience);
+  if (settings.sound && current === 'game') { sfx.startDrone(); sfx.startAmbience(tension); }
   if (game) {
     // мгновенно применимое — туман, обзор, масштаб; остальное со следующей ночи
     game.settings.fog = settings.fog;
@@ -272,6 +300,7 @@ window.LABYR = {
   get game() { return game; },
   get renderer() { return renderer; },
   get settings() { return settings; },
+  sfx,
   start: startGame,
 };
 

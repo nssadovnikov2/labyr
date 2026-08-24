@@ -12,6 +12,8 @@ export const DEFAULTS = {
   exitAt: 'other',
   zoom: 'mid',
   sound: true,
+  volume: 70,
+  ambience: true,
   seed: '',
 };
 
@@ -44,6 +46,8 @@ export function readForm(root) {
     exitAt: val('exitAt').value,
     zoom: val('zoom').value,
     sound: val('sound').checked,
+    volume: +val('volume').value,
+    ambience: val('ambience').checked,
     seed: val('seed').value.trim(),
   };
 }
@@ -60,5 +64,7 @@ export function writeForm(root, s) {
   val('exitAt').value = s.exitAt;
   val('zoom').value = s.zoom;
   val('sound').checked = s.sound;
+  val('volume').value = s.volume;
+  val('ambience').checked = s.ambience;
   val('seed').value = s.seed || '';
 }
