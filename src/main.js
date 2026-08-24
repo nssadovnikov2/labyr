@@ -83,7 +83,7 @@ function hideOverlays() {
 function startGame() {
   hideOverlays();
   music.duck(1, 0.6);
-  if (!renderer) renderer = new Renderer(el.canvas, el.entities);
+  if (!renderer) renderer = new Renderer(el.canvas, el.entities, el.vignette);
   if (game) game.abort();
   game = new Game(settings);
   dangerLevel = 0;
@@ -249,6 +249,7 @@ function applySettings() {
     // мгновенно применимое — туман, обзор, масштаб; остальное со следующей ночи
     game.settings.fog = settings.fog;
     game.settings.fogRadius = settings.fogRadius;
+    game.settings.fearFx = settings.fearFx;
     game.recomputeVision();
     if (renderer) renderer.setZoom(settings.zoom);
   }

@@ -76,6 +76,18 @@
 .p-leg.l { left: .12em; }
 .p-leg.r { right: .12em; }
 
+/* страх: героя потряхивает, дыхание сбивается */
+.ent-player.scared .p-fig { animation: tremble .16s steps(2) infinite; }
+.ent-player.terrified .p-fig { animation: tremble .09s steps(2) infinite; }
+@keyframes tremble {
+  0% { transform: translateX(-50%) translate(-.012em, 0); }
+  50% { transform: translateX(-50%) translate(.012em, -.008em); }
+  100% { transform: translateX(-50%) translate(-.008em, .006em); }
+}
+.ent-player.scared .p-glow { animation: fear-glow 1.1s ease-in-out infinite; }
+.ent-player.terrified .p-glow { animation-duration: .5s; }
+@keyframes fear-glow { 50% { opacity: .55; transform: scale(.86); } }
+
 .ent-player.walking .p-leg.l { animation: step-a .28s linear infinite; }
 .ent-player.walking .p-leg.r { animation: step-b .28s linear infinite; }
 .ent-player.walking .p-arm.l { animation: step-b .28s linear infinite; }
@@ -265,5 +277,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .a-fig, .a-aura, .a-eye i, .p-leg, .p-arm { animation: none !important; }
+  .a-fig, .a-aura, .a-eye i, .p-leg, .p-arm, .p-fig, .p-glow { animation: none !important; }
 }

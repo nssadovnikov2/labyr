@@ -11,6 +11,7 @@ export const DEFAULTS = {
   itemDensity: 0.01,
   exitAt: 'other',
   zoom: 'mid',
+  fearFx: true,
   sound: true,
   volume: 70,
   ambience: true,
@@ -47,6 +48,7 @@ export function readForm(root) {
     itemDensity: +val('itemDensity').value,
     exitAt: val('exitAt').value,
     zoom: val('zoom').value,
+    fearFx: val('fearFx').checked,
     sound: val('sound').checked,
     volume: +val('volume').value,
     ambience: val('ambience').checked,
@@ -67,6 +69,7 @@ export function writeForm(root, s) {
   val('itemDensity').value = s.itemDensity;
   val('exitAt').value = s.exitAt;
   val('zoom').value = s.zoom;
+  val('fearFx').checked = s.fearFx;
   val('sound').checked = s.sound;
   val('volume').value = s.volume;
   val('ambience').checked = s.ambience;

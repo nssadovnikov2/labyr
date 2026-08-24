@@ -115,8 +115,13 @@ body { touch-action: manipulation; }
 #entities { position: absolute; inset: 0; pointer-events: none; }
 
 #vignette {
+  --tunnel: 0;
   position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 38%, rgba(0, 0, 0, .78) 100%);
+  /* чем сильнее страх, тем уже просвет — тоннельное зрение */
+  background: radial-gradient(ellipse at center,
+    transparent calc(38% - var(--tunnel) * 27%),
+    rgba(0, 0, 0, .78) calc(100% - var(--tunnel) * 34%),
+    rgba(0, 0, 0, .95) 100%);
   transition: box-shadow .4s;
 }
 #vignette[data-level="1"] { box-shadow: inset 0 0 50px rgba(126, 15, 15, .3); }

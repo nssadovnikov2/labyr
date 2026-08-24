@@ -14,15 +14,21 @@ const PALETTE = {
   path: '#5fa8ff',
 };
 
+// Насколько сильно камера наезжает на героя при полном страхе.
+const FEAR_ZOOM = 0.95;
+
 export class Renderer {
-  constructor(canvas, entityLayer) {
+  constructor(canvas, entityLayer, vignette) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.layer = entityLayer;
+    this.vignette = vignette || null;
     this.game = null;
     this.cam = { x: 0, y: 0 };
     this.entities = new Map();
     this.ts = 28;
+    this.baseTs = 28;
+    this.fearZoom = 1;
     this.zoom = 'mid';
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.t = 0;
@@ -53,7 +59,8 @@ export class Renderer {
     this.canvas.style.height = this.vh + 'px';
     const across = ZOOM_TILES[this.zoom] || 19;
     const short = Math.min(this.vw, this.vh);
-    this.ts = Math.max(12, Math.min(64, Math.floor(short / across)));
+    this.baseTs = Math.max(12, Math.min(64, Math.floor(short / across)));
+    this.ts = Math.round(this.baseTs * this.fearZoom);
     if (this.game) this._syncEntitySizes();
   }
 
@@ -106,6 +113,17 @@ export class Renderer {
     const g = this.game;
     if (!g) return;
     this.t += 1 / 60;
+
+    // страх сужает обзор: камера наезжает на героя, оставляя ему тоннель
+    const fear = g.settings.fearFx === false ? 0 : (g.fear || 0);
+    const wanted = 1 + fear * FEAR_ZOOM;
+    this.fearZoom += (wanted - this.fearZoom) * 0.06;
+    const ts0 = Math.round(this.baseTs * this.fearZoom);
+    if (ts0 !== this.ts) {
+      this.ts = ts0;
+      this._syncEntitySizes();
+    }
+    if (this.vignette) this.vignette.style.setProperty('--tunnel', fear.toFixed(3));
 
     // мягкое слежение камеры
     const k = 0.18;
@@ -286,6 +304,9 @@ export class Renderer {
       place(p.el, this.ox + p.rx * ts, this.oy + p.ry * ts);
       p.el.dataset.dir = dirName(g.player.dir);
       p.el.classList.toggle('walking', Math.abs(p.rx - g.player.x) + Math.abs(p.ry - g.player.y) > 0.02);
+      const fear = g.settings.fearFx === false ? 0 : (g.fear || 0);
+      p.el.classList.toggle('scared', fear > 0.4);
+      p.el.classList.toggle('terrified', fear > 0.8);
       p.el.style.display = '';
     }
     for (const a of g.ais) {

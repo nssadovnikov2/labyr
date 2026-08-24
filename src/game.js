@@ -70,6 +70,8 @@ export class Game {
     this.turn = 1;
     this.phase = 'player';
     this.aborted = false;
+    this.fear = 0;
+    this.calm = 0;
     this.pathHint = [];
     this.log = [];
 
@@ -79,6 +81,7 @@ export class Game {
     this.player.stepsLeft = this.stepsPerTurn();
     this.distPlayer = bfsDist(this.maze, this.playerIdx());
     this.recomputeVision();
+    this._updateFear(1);
     this.emit('state');
   }
 
@@ -229,7 +232,30 @@ export class Game {
     for (const i of [...this.seenItems.keys()]) if (!this.items.has(i)) this.seenItems.delete(i);
   }
 
+  /**
+   * Страх героя, 0..1. Растёт от близости аниматроника и особенно от того,
+   * что он попал в поле зрения; нарастает рывком, отпускает медленно.
+   * Найденный предмет переключает внимание и на пару ходов гасит страх совсем.
+   */
+  _updateFear(force = 0) {
+    let target = 0;
+    if (this.calm <= 0) {
+      const d = this.nearestAiDistance();
+      if (isFinite(d)) {
+        if (d <= 3) target = 1;
+        else if (d < 26) target = (26 - d) / 23;
+      }
+      if (target > 0 && this.ais.some((a) => this.visible[this.idx(a.x, a.y)])) {
+        target = Math.min(1, target + 0.35);
+      }
+    }
+    const k = force || (target > this.fear ? 0.45 : 0.1);
+    this.fear += (target - this.fear) * k;
+    if (this.fear < 0.004) this.fear = 0;
+  }
+
   nearestAiDistance() {
+    if (!this.distPlayer) return Infinity;
     let best = Infinity;
     for (const a of this.ais) {
       const d = this.distPlayer[this.idx(a.x, a.y)];
@@ -260,6 +286,7 @@ export class Game {
     this._pickup(i);
 
     if (this.effects.path > 0) this._refreshPathHint();
+    this._updateFear();
 
     for (const a of this.ais) {
       if (a.x === this.player.x && a.y === this.player.y) return this._die(a);
@@ -284,6 +311,9 @@ export class Game {
     this.items.delete(i);
     this.seenItems.delete(i);
     const def = ITEMS[id];
+    // внимание переключилось на находку — страх отпускает, камера отъезжает
+    this.fear = 0;
+    this.calm = 2;
     if (def.instant) {
       if (id === 'lantern') this.effects.lantern = Math.min(8, this.effects.lantern + 2);
       this.recomputeVision();
@@ -353,6 +383,7 @@ export class Game {
         }
       }
       this.recomputeVision();
+      this._updateFear();
       this.emit('state');
       if (moved) await sleep(this.aiStepDelay);
       if (this.aborted) return;
@@ -363,6 +394,7 @@ export class Game {
     if (this.effects.path > 0) this.effects.path--;
     if (this.effects.radar > 0) this.effects.radar--;
     if (this.effects.haste > 0) this.effects.haste--;
+    if (this.calm > 0) this.calm--;
     if (this.effects.path > 0) this._refreshPathHint(); else this.pathHint = [];
 
     this.phase = 'player';
