@@ -74,8 +74,8 @@ body { touch-action: manipulation; }
   position: relative;
   z-index: 3;
 }
-.hud-left, .hud-right { display: flex; align-items: center; gap: 10px; }
-.hud-center { flex: 1; text-align: center; min-width: 0; }
+.hud-left, .hud-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.hud-center { flex: 1 1 auto; text-align: center; min-width: 0; overflow: hidden; }
 .hud-turn { font-size: 12px; letter-spacing: .16em; color: var(--dim); white-space: nowrap; }
 .hud-turn b { color: var(--ink); font-size: 15px; }
 
@@ -88,19 +88,91 @@ body { touch-action: manipulation; }
 }
 .steps i.used { background: #2a2f3d; box-shadow: none; }
 
-.status { font-size: 13px; letter-spacing: .14em; color: var(--dim); }
+.status { font-size: 13px; letter-spacing: .14em; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .status.ai-turn { color: var(--red); animation: pulse-dim 1s infinite; }
 @keyframes pulse-dim { 50% { opacity: .35; } }
 
+/* предупреждение висит над лабиринтом, а не в тесной шапке */
 .danger {
-  font-size: 12px; letter-spacing: .3em; margin-top: 2px;
+  position: absolute; left: 50%; top: 14px;
+  transform: translateX(-50%);
+  z-index: 4; pointer-events: none;
+  padding: 5px 14px; border-radius: 999px;
+  background: rgba(8, 4, 4, .72);
+  border: 1px solid rgba(192, 57, 43, .45);
+  font-size: 12px; letter-spacing: .3em; white-space: nowrap;
   color: var(--red); text-shadow: 0 0 10px rgba(192, 57, 43, .8);
   animation: pulse-dim 1.4s infinite;
 }
 .danger[data-level="2"] { font-size: 13px; animation-duration: .9s; }
-.danger[data-level="3"] { font-size: 14px; color: #ff5544; animation-duration: .45s; }
+.danger[data-level="3"] {
+  font-size: 14px; color: #ff5544; animation-duration: .45s;
+  border-color: rgba(255, 85, 68, .7);
+}
 
 .seed-label { font-size: 10px; color: #3d4354; letter-spacing: .08em; }
+
+/* ——— плеер: переключение тем прямо из игры ——— */
+.player {
+  display: flex; align-items: center; gap: 2px; flex: 0 0 auto;
+  padding: 2px 4px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: rgba(255, 255, 255, .02);
+  transition: border-color .2s, opacity .2s;
+}
+.player:hover { border-color: var(--line-2); }
+.player.off { opacity: .45; }
+
+.pbtn {
+  appearance: none; border: 0; background: transparent;
+  color: var(--dim); cursor: pointer;
+  font-family: var(--mono); font-size: 10px; line-height: 1;
+  padding: 6px 5px; border-radius: 999px;
+  transition: color .15s, background .15s;
+}
+.pbtn:hover { color: var(--ink); background: rgba(255, 255, 255, .06); }
+.pbtn:active { color: var(--amber); }
+
+.ptrack {
+  display: flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  font-size: 11px; letter-spacing: .06em;
+}
+.ptrack #track-name {
+  flex: 0 0 auto;
+  max-width: 110px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pnote { color: var(--amber); font-size: 12px; }
+.player.off .pnote { color: var(--dim); }
+
+.player .pvol {
+  width: 56px; height: 3px; margin: 0 6px 0 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--red-deep), var(--line-2));
+}
+.player .pvol::-webkit-slider-thumb {
+  appearance: none; width: 11px; height: 11px; border-radius: 50%;
+  background: #d9d2c6; border: 1px solid var(--red);
+  box-shadow: 0 0 6px rgba(192, 57, 43, .5); cursor: pointer;
+}
+.player .pvol::-moz-range-thumb {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #d9d2c6; border: 1px solid var(--red); cursor: pointer;
+}
+
+/* индикатор рывка рядом с шагами */
+.dodge {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 10px; letter-spacing: .1em; color: var(--dim);
+  padding: 3px 7px; border: 1px solid var(--line-2); border-radius: 999px;
+  white-space: nowrap;
+}
+.dodge.ready { color: #ffd9d3; border-color: var(--red); box-shadow: 0 0 10px rgba(192, 57, 43, .35); }
+.dodge b { font-size: 11px; }
+
+/* лишний шаг от адреналина видно отдельно */
+.steps i.panic { background: #ff6a55; box-shadow: 0 0 10px rgba(255, 90, 70, .8); }
 
 .icon-btn {
   background: transparent; border: 1px solid var(--line-2); color: var(--dim);
@@ -198,12 +270,31 @@ body { touch-action: manipulation; }
 .dbtn.right { grid-area: 2 / 3; }
 .dbtn.down { grid-area: 3 / 2; }
 
+@media (max-width: 900px) {
+  .ptrack { max-width: 84px; min-width: 0; }
+  .ptrack #track-name { display: none; }
+  .player .pvol { width: 44px; }
+  .dodge span { display: none; }
+}
+
 @media (pointer: coarse), (max-width: 780px) {
   .dpad { display: grid; }
   .slot-name { display: none; }
   #controls { align-items: center; }
   :root { --hud: 46px; }
 }
+/* в тесной шапке телефона фаза хода читается по точкам шагов, текст лишний */
+@media (max-width: 620px) {
+  .status { display: none; }
+  .hud-turn { font-size: 10px; }
+  .hud-turn b { font-size: 13px; }
+  .steps i { width: 8px; height: 8px; }
+  .dodge { padding: 2px 6px; font-size: 9px; letter-spacing: .04em; }
+  .dodge b { font-size: 10px; }
+  #hud { gap: 8px; padding: 0 8px; }
+  .hud-left, .hud-right { gap: 7px; }
+}
+
 @media (max-width: 420px) {
   .dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); }
   .inventory { max-width: 46vw; }

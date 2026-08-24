@@ -10,6 +10,9 @@ const KEYMAP = {
 export function bindInput({ onMove, onSkip, onUse, onPause, isActive }) {
   window.addEventListener('keydown', (e) => {
     if (!isActive()) return;
+    // если фокус в ползунке громкости или другом поле — стрелки принадлежат ему
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     // в пошаговой игре автоповтор клавиши недопустим — иначе ходы улетают пачками
     if (e.repeat) return;
     if (KEYMAP[e.code] !== undefined) {

@@ -132,22 +132,6 @@
           <span class="switch"></span>
         </label>
 
-        <label class="field switch-field">
-          <span class="field-name">Музыка</span>
-          <input type="checkbox" name="music" role="switch" checked>
-          <span class="switch"></span>
-        </label>
-
-        <label class="field">
-          <span class="field-name">Тема</span>
-          <select name="musicTheme"></select>
-          <span class="field-hint">Ноты собираются на лету, поэтому одна тема звучит по-разному</span>
-        </label>
-
-        <label class="field">
-          <span class="field-name">Громкость музыки <output name="musicVolumeOut">55</output></span>
-          <input type="range" name="musicVolume" min="0" max="100" step="5">
-        </label>
 
         <label class="field">
           <span class="field-name">Сид (необязательно)</span>
@@ -176,8 +160,11 @@
            Затем ходят аниматроники: до <b>4 клеток</b> каждый.</p>
         <p><b>Куда идти.</b> Зелёная стрелка у края экрана всегда показывает <i>направление</i> на выход — но не дорогу к нему. Дорогу покажет «Карта».</p>
         <p><b>Они слышат.</b> Пока ты далеко — бродят по лабиринту и стерегут выход. Стоит подойти ближе радиуса слуха — идут точно на тебя. На нормальной сложности они вдобавок иногда чуют, в какой части лабиринта ты находишься, и берут туда курс.</p>
+        <p><b>Он перекрыл коридор.</b> Шагни прямо в него — герой проскочит мимо, поменявшись с ним местами и сбив его с ног на два хода. Такой рывок отнимает остаток хода и восстанавливается 8 ходов; пока он не готов, шаг в аниматроника — это смерть. Индикатор рывка виден в шапке рядом с шагами.</p>
+        <p><b>Адреналин.</b> Когда они близко, страх даёт герою лишний, четвёртый шаг в ходу — иначе от погони не оторваться. А сам аниматроник в затяжной погоне выдыхается: побегав впустую с десяток ходов, он теряет след и уходит.</p>
         <p><b>Страх.</b> Когда аниматроник подбирается ближе, у героя сужается зрение: камера наезжает, края темнеют, его самого потряхивает. Видно меньше — зато морду того, кто пришёл, разглядишь во всех подробностях. Любая находка переключает внимание: страх спадает и обзор возвращается на пару ходов, даже если преследователь ещё рядом.</p>
         <p><b>Слушай.</b> Скрежет, цепи и плач становятся чаще и злее, когда они близко. Тишина — не всегда хороший знак.</p>
+        <p><b>Музыка.</b> Плеер в шапке справа: стрелками переключаются пять тем, щелчок по названию выключает музыку, ползунок рядом — громкость. Каждая тема собирается из нот заново, поэтому дважды одинаково не звучит.</p>
         <p><b>Предметы</b> лежат в тупиках и коридорах. Подобранные применяются клавишами <b>1…6</b> или щелчком по слоту.</p>
         <ul class="legend" id="item-legend"></ul>
         <p class="help-keys">
@@ -199,12 +186,21 @@
       <div class="hud-left">
         <div class="hud-turn">ХОД <b id="turn-num">1</b></div>
         <div id="steps" class="steps"></div>
+        <div id="dodge" class="dodge" title="Рывок мимо аниматроника"><span>РЫВОК</span><b>—</b></div>
       </div>
       <div class="hud-center">
         <div id="status" class="status">Твой ход</div>
-        <div id="danger" class="danger" hidden></div>
       </div>
       <div class="hud-right">
+        <div id="player" class="player">
+          <button class="pbtn" data-action="track-prev" aria-label="Предыдущая тема">◀</button>
+          <button class="pbtn ptrack" data-action="music-toggle" aria-label="Включить или выключить музыку">
+            <span class="pnote">♪</span><span id="track-name">—</span>
+          </button>
+          <button class="pbtn" data-action="track-next" aria-label="Следующая тема">▶</button>
+          <input id="music-vol" class="pvol" type="range" min="0" max="100" step="5"
+                 aria-label="Громкость музыки">
+        </div>
         <div id="seed-label" class="seed-label"></div>
         <button class="icon-btn" data-action="pause" title="Пауза (Esc)">❚❚</button>
       </div>
@@ -213,6 +209,7 @@
     <div id="stage">
       <canvas id="maze"></canvas>
       <div id="entities"></div>
+      <div id="danger" class="danger" hidden></div>
       <div id="vignette"></div>
       <div id="scanlines"></div>
       <div id="toast"></div>

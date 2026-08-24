@@ -190,7 +190,8 @@ export class Music {
     this.wetGain.connect(this.sfx.verb);
     this.bus.connect(this.wetGain);
 
-    // «корпус гитары»: пара резонансов и срез верха
+    // Баланс голосов. Шкатулка ведёт тему, поэтому она тише остальных,
+    // а бас идёт своей шиной — иначе он тонет под её же перебором.
     const body1 = ctx.createBiquadFilter();
     body1.type = 'peaking'; body1.frequency.value = 110; body1.Q.value = 1.1; body1.gain.value = 4;
     const body2 = ctx.createBiquadFilter();
@@ -198,7 +199,7 @@ export class Music {
     const top = ctx.createBiquadFilter();
     top.type = 'lowpass'; top.frequency.value = 4800; top.Q.value = 0.7;
     this.guitarGain = ctx.createGain();
-    this.guitarGain.gain.value = 0.85;
+    this.guitarGain.gain.value = 0.94;
     body1.connect(body2); body2.connect(top); top.connect(this.guitarGain);
     this.guitarGain.connect(this.bus);
     this.guitarIn = body1;
@@ -209,10 +210,19 @@ export class Music {
     const sparkle = ctx.createBiquadFilter();
     sparkle.type = 'peaking'; sparkle.frequency.value = 2600; sparkle.Q.value = 1.2; sparkle.gain.value = 3.5;
     this.boxGain = ctx.createGain();
-    this.boxGain.gain.value = 0.85;
+    this.boxGain.gain.value = 0.72;
     hp.connect(sparkle); sparkle.connect(this.boxGain);
     this.boxGain.connect(this.bus);
     this.boxIn = hp;
+
+    // бас: отдельная шина с подчёркнутым низом
+    const bassShelf = ctx.createBiquadFilter();
+    bassShelf.type = 'lowshelf'; bassShelf.frequency.value = 320; bassShelf.gain.value = 5;
+    this.bassGain = ctx.createGain();
+    this.bassGain.gain.value = 1.2;
+    bassShelf.connect(this.bassGain);
+    this.bassGain.connect(this.bus);
+    this.bassIn = bassShelf;
 
     this.padIn = ctx.createGain();
     this.padIn.gain.value = 1;
@@ -334,8 +344,11 @@ export class Music {
     return buf;
   }
 
-  /** detune — расстройка в центах: небольшая делает звук живым, большая — больным. */
-  note(midi, when, gain = 0.5, pan = 0, detune = 0) {
+  /**
+   * detune — расстройка в центах: небольшая делает звук живым, большая — больным.
+   * role 'bass' уводит ноту на басовую шину, мимо громкости ведущего голоса.
+   */
+  note(midi, when, gain = 0.5, pan = 0, detune = 0, role = 'lead') {
     if (!this.ctx) return;
     const ctx = this.ctx;
     const voice = this.preset.voice;
@@ -346,7 +359,7 @@ export class Music {
     const g = ctx.createGain();
     g.gain.value = gain;
     src.connect(g);
-    const dest = voice === 'box' ? this.boxIn : this.guitarIn;
+    const dest = role === 'bass' ? this.bassIn : (voice === 'box' ? this.boxIn : this.guitarIn);
     if (ctx.createStereoPanner) {
       const p = ctx.createStereoPanner();
       p.pan.value = pan;
@@ -362,7 +375,7 @@ export class Music {
     const ctx = this.ctx;
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.0001, when);
-    amp.gain.linearRampToValueAtTime(0.028 * level, when + dur * 0.45);
+    amp.gain.linearRampToValueAtTime(0.031 * level, when + dur * 0.45);
     amp.gain.linearRampToValueAtTime(0.0001, when + dur);
     amp.connect(this.padIn);
 
@@ -391,7 +404,7 @@ export class Music {
     const freq = 440 * Math.pow(2, (midi - 69) / 12);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(0.02, when + dur * 0.5);
+    g.gain.linearRampToValueAtTime(0.022, when + dur * 0.5);
     g.gain.linearRampToValueAtTime(0.0001, when + dur);
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = 700;
@@ -415,7 +428,7 @@ export class Music {
     o.frequency.exponentialRampToValueAtTime(36, when + 0.45);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.exponentialRampToValueAtTime(0.14 * level, when + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.154 * level, when + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, when + 1.1);
     o.connect(g); g.connect(this.bus);
     o.start(when); o.stop(when + 1.2);
@@ -438,7 +451,7 @@ export class Music {
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass'; bp.frequency.value = rnd(3200, 4800); bp.Q.value = 3;
     const g = ctx.createGain();
-    g.gain.value = 0.055 * level;
+    g.gain.value = 0.06 * level;
     src.connect(bp); bp.connect(g); g.connect(this.bus);
     src.start(when);
   }
@@ -479,7 +492,7 @@ export class Music {
     const tritone = chord[0] + 6;
 
     if (firstBarOfChord || chance(P.bass * 0.5)) {
-      this.note(chord[0], t0 + rnd(-0.01, 0.02), rnd(0.42, 0.6), rnd(-0.15, 0.15));
+      this.note(chord[0], t0 + rnd(-0.01, 0.02), rnd(0.42, 0.6), rnd(-0.15, 0.15), 0, 'bass');
     }
 
     // перебор
@@ -523,7 +536,7 @@ export class Music {
     if (lastBarOfChord && chance(0.55)) {
       const next = P.prog[(idx + 1) % P.prog.length];
       this.note(next.chord[0] + (chance(0.5) ? 1 : -1), t0 + this.barDur - eighth,
-        rnd(0.24, 0.34), rnd(-0.2, 0.2));
+        rnd(0.24, 0.34), rnd(-0.2, 0.2), 0, 'bass');
     }
 
     if (firstBarOfChord && P.pad > 0) {

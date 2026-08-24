@@ -7,7 +7,7 @@ export const DEFAULTS = {
   ai: 2,
   difficulty: 'normal',
   size: 100,
-  braid: 25,
+  braid: 40,
   itemDensity: 0.01,
   exitAt: 'other',
   zoom: 'mid',

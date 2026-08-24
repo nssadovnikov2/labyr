@@ -34,6 +34,10 @@ const el = {
   inventory: $('#inventory'),
   toast: $('#toast'),
   seedLabel: $('#seed-label'),
+  dodge: $('#dodge'),
+  player: $('#player'),
+  trackName: $('#track-name'),
+  musicVol: $('#music-vol'),
   pause: $('#overlay-pause'),
   death: $('#overlay-death'),
   win: $('#overlay-win'),
@@ -94,6 +98,7 @@ function startGame() {
   wireGame(game);
   showScreen('game');
   el.seedLabel.textContent = 'сид ' + game.seedText;
+  updatePlayerUI();
   updateHud();
   renderer.resize();
 }
@@ -111,6 +116,7 @@ function wireGame(g) {
       if (d <= 8) sfx.heartbeat(d <= 4 ? 1.4 : 0.8);
     }
   });
+  g.on('dodge', () => { sfx.dodge(); renderer.kick(2); });
   g.on('death', (killer) => showDeath(killer));
   g.on('win', (info) => showWin(info));
 }
@@ -129,7 +135,14 @@ function updateHud() {
       el.steps.appendChild(d);
     }
   }
-  [...el.steps.children].forEach((d, i) => d.classList.toggle('used', i >= left));
+  const panicFrom = max - (game.fear >= 0.7 ? 1 : 0);
+  [...el.steps.children].forEach((d, i) => {
+    d.classList.toggle('used', i >= left);
+    d.classList.toggle('panic', i >= panicFrom);
+  });
+
+  el.dodge.classList.toggle('ready', game.dodge <= 0);
+  el.dodge.querySelector('b').textContent = game.dodge <= 0 ? 'готов' : game.dodge;
 
   if (game.phase === 'ai') el.status.textContent = 'Они идут…';
   else if (game.phase === 'player') el.status.textContent = 'Твой ход';
@@ -213,6 +226,43 @@ function plural(n, one, few, many) {
   return many;
 }
 
+// ——— плеер в шапке ———
+function updatePlayerUI() {
+  el.player.classList.toggle('off', !settings.music);
+  el.trackName.textContent = settings.music ? music.preset.name : 'выкл';
+  if (document.activeElement !== el.musicVol) el.musicVol.value = settings.musicVolume;
+}
+
+function switchTrack(delta) {
+  const ids = PRESETS.map((p) => p.id);
+  const i = (ids.indexOf(music.preset.id) + delta + ids.length) % ids.length;
+  settings.musicTheme = ids[i];
+  if (!settings.music) settings.music = true;
+  saveSettings(settings);
+  music.setEnabled(settings.sound);
+  music.setPreset(ids[i]);
+  music.stop();
+  music.start();
+  updatePlayerUI();
+  toast('Тема: ' + music.preset.name, '#ffd76a');
+}
+
+function toggleMusic() {
+  settings.music = !settings.music;
+  saveSettings(settings);
+  music.setEnabled(settings.music && settings.sound);
+  if (settings.music) music.start();
+  updatePlayerUI();
+}
+
+let volTimer = null;
+el.musicVol.addEventListener('input', () => {
+  settings.musicVolume = +el.musicVol.value;
+  music.setVolume(settings.musicVolume / 100);
+  clearTimeout(volTimer);
+  volTimer = setTimeout(() => saveSettings(settings), 400);
+});
+
 // ——— настройки ———
 function syncOutputs() {
   const f = el.form;
@@ -220,9 +270,8 @@ function syncOutputs() {
   f.querySelector('[name="aiOut"]').value = f.querySelector('[name="ai"]').value;
   f.querySelector('[name="braidOut"]').value = f.querySelector('[name="braid"]').value;
   f.querySelector('[name="volumeOut"]').value = f.querySelector('[name="volume"]').value;
-  f.querySelector('[name="musicVolumeOut"]').value = f.querySelector('[name="musicVolume"]').value;
   const soundOn = f.querySelector('[name="sound"]').checked;
-  for (const n of ['volume', 'ambience', 'music', 'musicVolume']) {
+  for (const n of ['volume', 'ambience']) {
     f.querySelector(`[name="${n}"]`).disabled = !soundOn;
   }
   f.querySelector('[name="fogRadius"]').disabled = !f.querySelector('[name="fog"]').checked;
@@ -245,8 +294,8 @@ function applySettings() {
   sfx.setAmbient(settings.ambience);
   music.setEnabled(settings.music && settings.sound);
   music.setVolume(settings.musicVolume / 100);
-  music.setPreset(settings.musicTheme);
-  if (settings.sound) music.start();
+  if (settings.sound && settings.music) music.start();
+  updatePlayerUI();
   if (settings.sound && current === 'game') { sfx.startDrone(); sfx.startAmbience(tension); }
   if (game) {
     // мгновенно применимое — туман, обзор, масштаб; остальное со следующей ночи
@@ -287,7 +336,12 @@ document.addEventListener('click', (e) => {
     case 'menu': showScreen('menu'); break;
     case 'pause': togglePause(true); break;
     case 'resume': togglePause(false); break;
+    case 'track-prev': switchTrack(-1); break;
+    case 'track-next': switchTrack(1); break;
+    case 'music-toggle': toggleMusic(); break;
   }
+  // чтобы стрелки после клика снова двигали героя, а не кнопку
+  btn.blur();
 });
 
 function leaveSettings() {
@@ -314,10 +368,6 @@ bindInput({
 });
 
 // ——— список музыкальных тем ———
-el.form.querySelector('[name="musicTheme"]').innerHTML =
-  `<option value="random">Случайная — своя на каждую ночь</option>` +
-  PRESETS.map((p) => `<option value="${p.id}">${p.name} — ${p.about}</option>`).join('');
-
 // ——— справка по предметам ———
 $('#item-legend').innerHTML = Object.values(ITEMS)
   .map((i) => `<li style="--c:${i.color}"><span class="glyph">${i.glyph}</span><span class="txt"><b>${i.name}</b> — ${i.desc}</span></li>`)

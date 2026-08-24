@@ -168,6 +168,35 @@ export class Sfx {
   pickup() { this.tone(520, 0.1, 'sine', 0.12, 900); }
   use() { this.tone(300, 0.22, 'triangle', 0.12, 620); }
 
+  /** Рывок мимо аниматроника: свист воздуха и глухой удар плечом. */
+  dodge() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const t0 = ctx.currentTime;
+    const bus = this._gain(1);
+    // свист
+    const n = this._noiseSrc(0.35);
+    const bp = this._filter('bandpass', 900, 2.5);
+    bp.frequency.exponentialRampToValueAtTime(2600, t0 + 0.3);
+    const ng = this._gain(0.0001);
+    ng.gain.exponentialRampToValueAtTime(0.22, t0 + 0.04);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+    n.connect(bp); bp.connect(ng); ng.connect(bus);
+    // удар плечом
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(140, t0);
+    o.frequency.exponentialRampToValueAtTime(48, t0 + 0.22);
+    const og = this._gain(0.0001);
+    og.gain.exponentialRampToValueAtTime(0.2, t0 + 0.01);
+    og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+    o.connect(og); og.connect(bus);
+    this._out(bus, 0.4);
+    n.start(t0); n.stop(t0 + 0.4);
+    o.start(t0); o.stop(t0 + 0.45);
+    this.chains(0.7);
+  }
+
   heartbeat(intensity = 1) {
     this.tone(52, 0.16, 'sine', 0.1 * intensity);
     setTimeout(() => this.tone(46, 0.2, 'sine', 0.08 * intensity), 170);

@@ -14,14 +14,22 @@ export const AI_TYPES = [
 
 // sense — радиус слуха в клетках, scent — доля маршрутов патруля, ведущих в район игрока.
 // sense — радиус слуха в клетках; scent — вероятность «взять след» при смене
-// маршрута; stalkTurns — сколько ходов аниматроник упорно идёт по следу.
+// маршрута; stalkTurns — упорство на следу; patience — сколько ходов подряд
+// аниматроник гонится, прежде чем выдохнется и потеряет игрока.
 export const DIFFICULTY = {
-  easy: { sense: 10, speed: 3, scent: 0.012, stalkTurns: 8, label: 'Лёгкая' },
-  normal: { sense: 29, speed: 4, scent: 0.035, stalkTurns: 12, label: 'Нормальная' },
-  nightmare: { sense: Infinity, speed: 4, scent: 1, stalkTurns: 999, label: 'Кошмар' },
+  easy: { sense: 10, speed: 3, scent: 0.03, stalkTurns: 8, patience: 8, label: 'Лёгкая' },
+  normal: { sense: 29, speed: 4, scent: 0.07, stalkTurns: 12, patience: 12, label: 'Нормальная' },
+  nightmare: { sense: Infinity, speed: 4, scent: 1, stalkTurns: 999, patience: Infinity, label: 'Кошмар' },
 };
 
+// Сколько ходов аниматроник не слышит игрока после того, как выдохся.
+const HUNT_RECOVERY = 6;
+
 const BASE_STEPS = 3;
+// Рывок: раз в столько ходов герой может проскочить мимо аниматроника.
+const DODGE_COOLDOWN = 8;
+// На столько ходов сбитый с ног аниматроник выбывает.
+const DODGE_STUN = 2;
 
 export class Game {
   constructor(settings) {
@@ -72,6 +80,7 @@ export class Game {
     this.aborted = false;
     this.fear = 0;
     this.calm = 0;
+    this.dodge = 0;
     this.pathHint = [];
     this.log = [];
 
@@ -150,11 +159,14 @@ export class Game {
       speed: diff.speed,
       scent: diff.scent,
       stalkTurns: diff.stalkTurns,
+      patience: diff.patience,
       frozen: 0,
       mode: 'patrol',
       plan: 1 + ((rng() * 6) | 0),
       stalk: 0,
       bestDist: Infinity,
+      huntTurns: 0,
+      lost: 0,
       target: -1,
       targetDist: null,
       lastIdx: -1,
@@ -196,7 +208,12 @@ export class Game {
   // ——— утилиты ———
   idx(x, y) { return y * this.w + x; }
   playerIdx() { return this.idx(this.player.x, this.player.y); }
-  stepsPerTurn() { return BASE_STEPS + (this.effects.haste > 0 ? 3 : 0); }
+  /** На адреналине герой делает лишний шаг — иначе от погони не оторваться. */
+  stepsPerTurn() {
+    return BASE_STEPS
+      + (this.effects.haste > 0 ? 3 : 0)
+      + (this.fear >= 0.7 ? 1 : 0);
+  }
   fogRadius() {
     if (!this.settings.fog) return Infinity;
     return this.settings.fogRadius + this.effects.lantern;
@@ -275,8 +292,40 @@ export class Game {
       this.emit('state');
       return false;
     }
-    this.player.x = x + DX[dir];
-    this.player.y = y + DY[dir];
+    const nx = x + DX[dir], ny = y + DY[dir];
+    const blocker = this.ais.find((a) => a.x === nx && a.y === ny);
+
+    // Аниматроник перекрыл коридор. Если рывок готов — проскакиваем мимо,
+    // меняясь с ним местами и сбивая его с ног; если нет — это конец.
+    if (blocker) {
+      if (this.dodge > 0) {
+        this.player.x = nx;
+        this.player.y = ny;
+        this.recomputeVision();
+        return this._die(blocker);
+      }
+      blocker.x = x;
+      blocker.y = y;
+      blocker.lastIdx = this.idx(nx, ny);
+      blocker.frozen = DODGE_STUN;
+      blocker.mode = 'hunt';
+      this.player.x = nx;
+      this.player.y = ny;
+      this.player.stepsLeft = 0;
+      this.dodge = DODGE_COOLDOWN;
+      this.fear = 1;
+      this.calm = 0;
+      this.distPlayer = bfsDist(this.maze, this.playerIdx());
+      this.recomputeVision();
+      this.emit('dodge', blocker);
+      this.emit('toast', { text: `Рывок мимо ${blocker.name}!`, color: '#ffb9ad' });
+      this.emit('state');
+      this.endTurn();
+      return true;
+    }
+
+    this.player.x = nx;
+    this.player.y = ny;
     this.player.stepsLeft--;
     this.emit('step');
 
@@ -288,9 +337,6 @@ export class Game {
     if (this.effects.path > 0) this._refreshPathHint();
     this._updateFear();
 
-    for (const a of this.ais) {
-      if (a.x === this.player.x && a.y === this.player.y) return this._die(a);
-    }
     if (i === this.exitIdx) return this._win();
 
     this.emit('state');
@@ -395,6 +441,7 @@ export class Game {
     if (this.effects.radar > 0) this.effects.radar--;
     if (this.effects.haste > 0) this.effects.haste--;
     if (this.calm > 0) this.calm--;
+    if (this.dodge > 0) this.dodge--;
     if (this.effects.path > 0) this._refreshPathHint(); else this.pathHint = [];
 
     this.phase = 'player';
@@ -414,15 +461,29 @@ export class Game {
   _aiPlan(a) {
     const cur = this.idx(a.x, a.y);
     const d = this.distPlayer[cur];
-    const senses = a.sense === Infinity || (d >= 0 && d <= a.sense);
+    if (a.lost > 0) a.lost--;
+    const senses = a.lost <= 0 && (a.sense === Infinity || (d >= 0 && d <= a.sense));
 
     if (senses) {
+      // погоня выматывает: побегав достаточно долго впустую, он теряет игрока
+      a.huntTurns++;
+      if (a.huntTurns > a.patience) {
+        a.huntTurns = 0;
+        a.lost = HUNT_RECOVERY;
+        a.mode = 'search';
+        a.stalk = 0;
+        a.plan = 8;
+        a.target = this.playerIdx();
+        a.targetDist = bfsDist(this.maze, a.target);
+        return;
+      }
       a.mode = 'hunt';
       a.stalk = 0;
       a.target = -1;
       a.targetDist = null;
       return;
     }
+    a.huntTurns = 0;
 
     if (a.mode === 'hunt') {
       // упустил — идём туда, где он был слышен в последний раз
