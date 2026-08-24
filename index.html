@@ -61,7 +61,7 @@
           <span class="field-name">Сложность</span>
           <select name="difficulty">
             <option value="easy">Лёгкая — 3 клетки за ход, слух 10</option>
-            <option value="normal">Нормальная — 4 клетки, слух 24</option>
+            <option value="normal">Нормальная — 4 клетки, слух 29, берут след</option>
             <option value="nightmare">Кошмар — 4 клетки, видят всегда</option>
           </select>
         </label>
@@ -124,6 +124,18 @@
           <span class="field-name">Атмосферные звуки</span>
           <input type="checkbox" name="ambience" role="switch">
           <span class="switch"></span>
+        </label>
+
+        <label class="field switch-field">
+          <span class="field-name">Музыка</span>
+          <input type="checkbox" name="music" role="switch">
+          <span class="switch"></span>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Громкость музыки <output name="musicVolumeOut">55</output></span>
+          <input type="range" name="musicVolume" min="0" max="100" step="5">
+          <span class="field-hint">Гитара и хор синтезируются на лету, тема каждый раз чуть другая</span>
         </label>
 
         <label class="field">

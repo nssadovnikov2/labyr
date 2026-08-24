@@ -14,6 +14,8 @@ export const DEFAULTS = {
   sound: true,
   volume: 70,
   ambience: true,
+  music: true,
+  musicVolume: 55,
   seed: '',
 };
 
@@ -48,6 +50,8 @@ export function readForm(root) {
     sound: val('sound').checked,
     volume: +val('volume').value,
     ambience: val('ambience').checked,
+    music: val('music').checked,
+    musicVolume: +val('musicVolume').value,
     seed: val('seed').value.trim(),
   };
 }
@@ -66,5 +70,7 @@ export function writeForm(root, s) {
   val('sound').checked = s.sound;
   val('volume').value = s.volume;
   val('ambience').checked = s.ambience;
+  val('music').checked = s.music;
+  val('musicVolume').value = s.musicVolume;
   val('seed').value = s.seed || '';
 }

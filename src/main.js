@@ -4,6 +4,7 @@ import { Renderer, animatronicMarkup } from './render.js';
 import { loadSettings, saveSettings, readForm, writeForm, DEFAULTS } from './settings.js';
 import { bindInput } from './input.js';
 import { Sfx } from './audio.js';
+import { Music } from './music.js';
 import { ITEMS } from './items.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -16,6 +17,9 @@ const sfx = new Sfx();
 sfx.setEnabled(settings.sound);
 sfx.setVolume(settings.volume / 100);
 sfx.setAmbient(settings.ambience);
+const music = new Music(sfx);
+music.setEnabled(settings.music && settings.sound);
+music.setVolume(settings.musicVolume / 100);
 
 const el = {
   screens: $$('.screen'),
@@ -47,6 +51,7 @@ function showScreen(name) {
     if (renderer) renderer.stop();
     sfx.stopDrone();
     sfx.stopAmbience();
+    music.duck(1);
   } else if (renderer) {
     renderer.resize();
     renderer.start();
@@ -77,6 +82,7 @@ function hideOverlays() {
 // ——— игра ———
 function startGame() {
   hideOverlays();
+  music.duck(1, 0.6);
   if (!renderer) renderer = new Renderer(el.canvas, el.entities);
   if (game) game.abort();
   game = new Game(settings);
@@ -179,6 +185,7 @@ function showDeath(killer) {
   sfx.scream();
   sfx.stopDrone();
   sfx.stopAmbience();
+  music.duck(0, 0.25);
   renderer.kick(3);
   el.jumpscare.className = 'jumpscare type-' + (killer ? killer.type : 'freddy');
   el.jumpscare.innerHTML = animatronicMarkup();
@@ -192,6 +199,7 @@ function showWin(info) {
   sfx.win();
   sfx.stopDrone();
   sfx.stopAmbience();
+  music.duck(0.35, 1.2);
   el.winSub.textContent = `Ты выбрался за ${info.turns} ${plural(info.turns, 'ход', 'хода', 'ходов')}. Лабиринт ${game.w}×${game.h}, сид ${game.seedText}.`;
   el.win.hidden = false;
 }
@@ -210,8 +218,11 @@ function syncOutputs() {
   f.querySelector('[name="aiOut"]').value = f.querySelector('[name="ai"]').value;
   f.querySelector('[name="braidOut"]').value = f.querySelector('[name="braid"]').value;
   f.querySelector('[name="volumeOut"]').value = f.querySelector('[name="volume"]').value;
-  f.querySelector('[name="volume"]').disabled = !f.querySelector('[name="sound"]').checked;
-  f.querySelector('[name="ambience"]').disabled = !f.querySelector('[name="sound"]').checked;
+  f.querySelector('[name="musicVolumeOut"]').value = f.querySelector('[name="musicVolume"]').value;
+  const soundOn = f.querySelector('[name="sound"]').checked;
+  for (const n of ['volume', 'ambience', 'music', 'musicVolume']) {
+    f.querySelector(`[name="${n}"]`).disabled = !soundOn;
+  }
   f.querySelector('[name="fogRadius"]').disabled = !f.querySelector('[name="fog"]').checked;
 }
 el.form.addEventListener('input', syncOutputs);
@@ -230,6 +241,9 @@ function applySettings() {
   sfx.setEnabled(settings.sound);
   sfx.setVolume(settings.volume / 100);
   sfx.setAmbient(settings.ambience);
+  music.setEnabled(settings.music && settings.sound);
+  music.setVolume(settings.musicVolume / 100);
+  if (settings.sound) music.start();
   if (settings.sound && current === 'game') { sfx.startDrone(); sfx.startAmbience(tension); }
   if (game) {
     // мгновенно применимое — туман, обзор, масштаб; остальное со следующей ночи
@@ -240,12 +254,17 @@ function applySettings() {
   }
 }
 
+// любой первый жест разблокирует звук в браузере — и сразу заводит музыку
+function wakeAudio() {
+  sfx.ensure();
+  if (settings.sound && settings.music) music.start();
+}
 // ——— кнопки ———
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action;
-  sfx.ensure();
+  wakeAudio();
   switch (action) {
     case 'new-game': startGame(); break;
     case 'settings': openSettings(); break;
@@ -301,11 +320,11 @@ window.LABYR = {
   get renderer() { return renderer; },
   get settings() { return settings; },
   sfx,
+  music,
   start: startGame,
 };
 
-// первый жест разблокирует звук в браузере
-window.addEventListener('pointerdown', () => sfx.ensure(), { once: true });
-window.addEventListener('keydown', () => sfx.ensure(), { once: true });
+window.addEventListener('pointerdown', wakeAudio, { once: true });
+window.addEventListener('keydown', wakeAudio, { once: true });
 
 showScreen('menu');
