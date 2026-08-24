@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>LABYR — пять ночей в лабиринте</title>
+<meta name="description" content="Мрачная пошаговая игра: пройди лабиринт 100×100 и не дай аниматроникам коснуться тебя.">
+<meta name="theme-color" content="#04050a">
+<link rel="icon" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Creepster&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/entities.css">
+<link rel="stylesheet" href="styles/screens.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ГЛАВНОЕ МЕНЮ -->
+  <section id="screen-menu" class="screen active">
+    <div class="noise"></div>
+    <div class="panel menu-panel">
+      <h1 class="logo" data-text="LABYR">LABYR</h1>
+      <p class="logo-sub">пять ночей в лабиринте</p>
+      <div class="menu-buttons">
+        <button class="btn btn-primary" data-action="new-game">Новая игра</button>
+        <button class="btn" data-action="settings">Настройки</button>
+        <button class="btn" data-action="help">Как играть</button>
+      </div>
+      <p class="tagline">Дойди до выхода. Не дай им прикоснуться.</p>
+    </div>
+  </section>
+
+  <!-- НАСТРОЙКИ -->
+  <section id="screen-settings" class="screen">
+    <div class="noise"></div>
+    <div class="panel wide">
+      <h2 class="panel-title">Настройки</h2>
+      <form id="settings-form" class="settings-grid" autocomplete="off">
+
+        <label class="field switch-field">
+          <span class="field-name">Туман войны</span>
+          <input type="checkbox" name="fog" role="switch">
+          <span class="switch"></span>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Радиус обзора <output name="fogRadiusOut">6</output></span>
+          <input type="range" name="fogRadius" min="2" max="15" step="1">
+          <span class="field-hint">Насколько далеко видно сквозь тьму</span>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Аниматроников <output name="aiOut">2</output></span>
+          <input type="range" name="ai" min="1" max="4" step="1">
+          <span class="field-hint">Стартуют в разных точках лабиринта</span>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Сложность</span>
+          <select name="difficulty">
+            <option value="easy">Лёгкая — 3 клетки за ход, слух 10</option>
+            <option value="normal">Нормальная — 4 клетки, слух 24</option>
+            <option value="nightmare">Кошмар — 4 клетки, видят всегда</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Размер лабиринта</span>
+          <select name="size">
+            <option value="40">40 × 40 — быстрая партия</option>
+            <option value="70">70 × 70 — средняя</option>
+            <option value="100">100 × 100 — как задумано</option>
+            <option value="150">150 × 150 — бесконечная ночь</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Петли в лабиринте <output name="braidOut">25</output>%</span>
+          <input type="range" name="braid" min="0" max="70" step="5">
+          <span class="field-hint">0% — сплошные тупики, больше — больше обходных путей</span>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Предметы</span>
+          <select name="itemDensity">
+            <option value="0.004">Редко</option>
+            <option value="0.01">Обычно</option>
+            <option value="0.02">Часто</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Где выход</span>
+          <select name="exitAt">
+            <option value="other">В соседнем углу</option>
+            <option value="lair">В логове — там, где аниматроник</option>
+            <option value="far">Случайно, но далеко</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Масштаб</span>
+          <select name="zoom">
+            <option value="near">Близко</option>
+            <option value="mid">Средне</option>
+            <option value="far">Далеко</option>
+          </select>
+        </label>
+
+        <label class="field switch-field">
+          <span class="field-name">Звук</span>
+          <input type="checkbox" name="sound" role="switch">
+          <span class="switch"></span>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Сид (необязательно)</span>
+          <input type="text" name="seed" placeholder="пусто — случайный лабиринт" maxlength="24">
+          <span class="field-hint">Одинаковый сид — одинаковый лабиринт</span>
+        </label>
+      </form>
+
+      <div class="panel-actions">
+        <button class="btn btn-primary" data-action="settings-save">Сохранить</button>
+        <button class="btn" data-action="settings-reset">Сбросить</button>
+        <button class="btn btn-ghost" data-action="settings-back">Назад</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- КАК ИГРАТЬ -->
+  <section id="screen-help" class="screen">
+    <div class="noise"></div>
+    <div class="panel wide">
+      <h2 class="panel-title">Как играть</h2>
+      <div class="help-body">
+        <p><b>Цель.</b> Добраться до светящегося выхода. Если аниматроник ступит на твою клетку — ночь окончена.</p>
+        <p><b>Ход.</b> За свой ход ты делаешь <b>3 шага</b> стрелками (или WASD / свайпом / крестовиной на телефоне).
+           Удар в стену шаг не тратит. Пробел — закончить ход досрочно.
+           Затем ходят аниматроники: до <b>4 клеток</b> каждый.</p>
+        <p><b>Куда идти.</b> Зелёная стрелка у края экрана всегда показывает <i>направление</i> на выход — но не дорогу к нему. Дорогу покажет «Карта».</p>
+        <p><b>Они слышат.</b> Пока ты далеко — бродят по лабиринту. Стоит подойти ближе радиуса слуха — идут точно на тебя.</p>
+        <p><b>Предметы</b> лежат в тупиках и коридорах. Подобранные применяются клавишами <b>1…6</b> или щелчком по слоту.</p>
+        <ul class="legend" id="item-legend"></ul>
+        <p class="help-keys">
+          <span><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> шаг</span>
+          <span><kbd>Пробел</kbd> закончить ход</span>
+          <span><kbd>1</kbd>…<kbd>6</kbd> предмет</span>
+          <span><kbd>Esc</kbd> пауза</span>
+        </p>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-ghost" data-action="menu">Назад</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ИГРА -->
+  <section id="screen-game" class="screen">
+    <header id="hud">
+      <div class="hud-left">
+        <div class="hud-turn">ХОД <b id="turn-num">1</b></div>
+        <div id="steps" class="steps"></div>
+      </div>
+      <div class="hud-center">
+        <div id="status" class="status">Твой ход</div>
+        <div id="danger" class="danger" hidden></div>
+      </div>
+      <div class="hud-right">
+        <div id="seed-label" class="seed-label"></div>
+        <button class="icon-btn" data-action="pause" title="Пауза (Esc)">❚❚</button>
+      </div>
+    </header>
+
+    <div id="stage">
+      <canvas id="maze"></canvas>
+      <div id="entities"></div>
+      <div id="vignette"></div>
+      <div id="scanlines"></div>
+      <div id="toast"></div>
+    </div>
+
+    <footer id="controls">
+      <ul id="inventory" class="inventory"></ul>
+      <div class="dpad">
+        <button class="dbtn up" data-dir="n" aria-label="Вверх">▲</button>
+        <button class="dbtn left" data-dir="w" aria-label="Влево">◀</button>
+        <button class="dbtn skip" data-action="skip" aria-label="Закончить ход">●</button>
+        <button class="dbtn right" data-dir="e" aria-label="Вправо">▶</button>
+        <button class="dbtn down" data-dir="s" aria-label="Вниз">▼</button>
+      </div>
+    </footer>
+  </section>
+
+  <!-- ПАУЗА -->
+  <div id="overlay-pause" class="overlay" hidden>
+    <div class="panel">
+      <h2 class="panel-title">Пауза</h2>
+      <div class="menu-buttons">
+        <button class="btn btn-primary" data-action="resume">Продолжить</button>
+        <button class="btn" data-action="new-game">Начать заново</button>
+        <button class="btn" data-action="settings">Настройки</button>
+        <button class="btn btn-ghost" data-action="menu">Выйти в меню</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- СМЕРТЬ -->
+  <div id="overlay-death" class="overlay overlay-death" hidden>
+    <div class="jumpscare" id="jumpscare"></div>
+    <div class="blood"></div>
+    <div class="you-died">YOU DIED</div>
+    <div class="end-actions" id="death-actions">
+      <button class="btn btn-primary" data-action="new-game">Ещё одна ночь</button>
+      <button class="btn btn-ghost" data-action="menu">В меню</button>
+    </div>
+  </div>
+
+  <!-- ПОБЕДА -->
+  <div id="overlay-win" class="overlay overlay-win" hidden>
+    <div class="you-escaped">YOU ESCAPED</div>
+    <p class="win-sub" id="win-sub"></p>
+    <div class="end-actions">
+      <button class="btn btn-primary" data-action="new-game">Ещё раз</button>
+      <button class="btn btn-ghost" data-action="menu">В меню</button>
+    </div>
+  </div>
+
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
