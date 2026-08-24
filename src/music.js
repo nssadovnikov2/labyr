@@ -1,18 +1,25 @@
 // Музыка целиком синтезируется в браузере: никаких аудиофайлов.
 // Гитара — физическая модель щипковой струны (алгоритм Карплуса — Стронга),
 // поверх неё хоровые пэды, диссонансные подкладки и редкие удары.
-// Тема авторская, в духе подземелий и Тристрама: ля минор, медленно, много пауз.
+// Тема авторская: ля минор, медленно, много пауз — но с хроматикой и тритонами,
+// чтобы звучало не грустно, а нехорошо.
 
 const BPM = 54;
 const BEAT = 60 / BPM;
 const BAR = BEAT * 4;
 
-// Аккорды: MIDI-ноты снизу вверх. Ля-минор с фригийским поворотом в конце.
+// Аккорды: MIDI-ноты снизу вверх, мелодия — из чего собирается верхний голос.
+// В каждом наборе есть тритон от основного тона (тот самый diabolus in musica)
+// и хроматические соседи, поэтому фраза всё время сползает мимо тональности.
+// Круг ля-минорный, но с уменьшённым Bdim и фригийским Bb: ход Bb -> E —
+// движение баса на тритон, самое неуютное, что бывает.
 const PROGRESSION = [
-  { name: 'Am', chord: [45, 52, 57, 60, 64], melody: [69, 72, 76, 67] },
-  { name: 'F',  chord: [41, 48, 53, 57, 60], melody: [65, 69, 72, 77] },
-  { name: 'Dm', chord: [38, 45, 50, 53, 57], melody: [69, 74, 77, 65] },
-  { name: 'E',  chord: [40, 47, 52, 56, 59], melody: [68, 71, 76, 64] },
+  { name: 'Am',   chord: [45, 52, 57, 60, 64], melody: [69, 72, 75, 70, 64] },
+  { name: 'F',    chord: [41, 48, 53, 57, 60], melody: [65, 71, 69, 76, 66] },
+  { name: 'Dm',   chord: [38, 45, 50, 53, 57], melody: [74, 68, 77, 73, 69] },
+  { name: 'Bdim', chord: [47, 50, 53, 56, 62], melody: [71, 77, 68, 74, 65] },
+  { name: 'Bb',   chord: [46, 53, 58, 62, 65], melody: [70, 76, 74, 73, 65] },
+  { name: 'E',    chord: [40, 47, 52, 56, 59], melody: [76, 70, 68, 71, 77] },
 ];
 
 // Восьмые внутри такта, на которых вообще может прозвучать нота перебора.
@@ -80,7 +87,11 @@ export class Music {
     body2.type = 'peaking'; body2.frequency.value = 230; body2.Q.value = 1.4; body2.gain.value = 3;
     const top = ctx.createBiquadFilter();
     top.type = 'lowpass'; top.frequency.value = 4800; top.Q.value = 0.7;
-    body1.connect(body2); body2.connect(top); top.connect(this.bus);
+    // гитара идёт на общую шину чуть тише остального
+    this.guitarGain = ctx.createGain();
+    this.guitarGain.gain.value = 0.85;
+    body1.connect(body2); body2.connect(top); top.connect(this.guitarGain);
+    this.guitarGain.connect(this.bus);
     this.guitarIn = body1;
 
     this.padIn = ctx.createGain();
@@ -142,12 +153,13 @@ export class Music {
     return buf;
   }
 
-  pluck(midi, when, gain = 0.5, pan = 0) {
+  /** detune — расстройка в центах: небольшая делает звук живым, большая — больным. */
+  pluck(midi, when, gain = 0.5, pan = 0, detune = 0) {
     if (!this.ctx) return;
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
     src.buffer = this._string(midi);
-    src.playbackRate.value = rnd(0.998, 1.002); // живой разброс строя
+    src.playbackRate.value = Math.pow(2, (detune + rnd(-3, 3)) / 1200);
     const g = ctx.createGain();
     g.gain.value = gain;
     src.connect(g);
@@ -251,9 +263,11 @@ export class Music {
   }
 
   _scheduleBar(bar, t0) {
-    const section = PROGRESSION[((bar / 2) | 0) % PROGRESSION.length];
+    const idx = ((bar / 2) | 0) % PROGRESSION.length;
+    const section = PROGRESSION[idx];
     const chord = section.chord;
     const firstBarOfChord = bar % 2 === 0;
+    const tritone = chord[0] + 6;
 
     // бас на первой доле — не каждый такт, чтобы оставался воздух
     if (firstBarOfChord || Math.random() < 0.45) {
@@ -267,19 +281,41 @@ export class Music {
       if (slot === 0) return;
       if (Math.random() < 0.12) return; // пропуски — дыхание фразы
       const order = up ? i : pattern.length - 1 - i;
-      const note = chord[1 + (order % (chord.length - 1))];
+      let note = chord[1 + (order % (chord.length - 1))];
+      // изредка вместо аккордовой ноты — тритон от баса
+      if (Math.random() < 0.1) note = tritone + 12;
       this.pluck(note, t0 + slot * (BEAT / 2) + rnd(-0.02, 0.03), rnd(0.22, 0.38), rnd(-0.35, 0.35));
     });
 
-    // мелодия — редко и высоко
-    if (Math.random() < (firstBarOfChord ? 0.55 : 0.3)) {
+    // мелодия: ноты из набора аккорда, с хроматическими подходами
+    if (Math.random() < (firstBarOfChord ? 0.55 : 0.32)) {
       const mel = section.melody;
       let t = t0 + rnd(1, 2) * BEAT;
       const count = 1 + ((Math.random() * 2) | 0);
       for (let i = 0; i < count; i++) {
-        this.pluck(mel[(Math.random() * mel.length) | 0], t, rnd(0.3, 0.45), rnd(-0.4, 0.4));
+        const note = mel[(Math.random() * mel.length) | 0];
+        const pan = rnd(-0.4, 0.4);
+        // сползание на полутон снизу или сверху — фраза как будто спотыкается
+        if (Math.random() < 0.45) {
+          this.pluck(note + (Math.random() < 0.6 ? -1 : 1), t - BEAT * 0.28, rnd(0.14, 0.22), pan);
+        }
+        // редкая «кислая» нота: струна поплыла
+        const sour = Math.random() < 0.12 ? rnd(18, 34) * (Math.random() < 0.5 ? -1 : 1) : 0;
+        this.pluck(note, t, rnd(0.3, 0.45), pan, sour);
         t += BEAT * (Math.random() < 0.5 ? 0.5 : 1);
       }
+    }
+
+    // одинокий тритон в верхнем регистре — повисает и не разрешается
+    if (Math.random() < 0.28) {
+      this.pluck(tritone + 12, t0 + BEAT * rnd(2.2, 3.4), rnd(0.18, 0.28), rnd(-0.6, 0.6));
+    }
+
+    // хроматический подход баса к следующему аккорду
+    if (!firstBarOfChord && Math.random() < 0.55) {
+      const next = PROGRESSION[(idx + 1) % PROGRESSION.length];
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      this.pluck(next.chord[0] + dir, t0 + BEAT * 3.5, rnd(0.24, 0.34), rnd(-0.2, 0.2));
     }
 
     // хор на смене аккорда
@@ -287,9 +323,9 @@ export class Music {
       this.pad([chord[0] + 12, chord[3], chord[4]], t0, BAR * 2.1, rnd(0.7, 1));
     }
 
-    // диссонанс раз в несколько тактов
-    if (bar % 8 === 5 && Math.random() < 0.7) {
-      this.drone(chord[0] + 13, t0 + BEAT, BAR * 1.6);
+    // диссонансная подкладка: то малая нона, то тритон
+    if (bar % 5 === 3 && Math.random() < 0.75) {
+      this.drone(chord[0] + (Math.random() < 0.5 ? 13 : 6), t0 + BEAT, BAR * 1.6);
     }
 
     // удар

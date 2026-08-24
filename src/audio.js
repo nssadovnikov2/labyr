@@ -5,7 +5,7 @@
 // Калибровка громкости атмосферного слоя: узкополосные фильтры съедают
 // большую часть энергии, поэтому у каждого звука свой множитель.
 const LVL = {
-  scrape: 2.6, chains: 3, cry: 4, breath: 3, bang: 1, whisper: 8, creak: 20,
+  scrape: 2.86, chains: 3.3, cry: 4.4, breath: 3.3, bang: 1.1, whisper: 8.8, creak: 22,
 };
 
 const rnd = (a, b) => a + Math.random() * (b - a);
