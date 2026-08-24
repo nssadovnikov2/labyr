@@ -4,7 +4,7 @@ import { Renderer, animatronicMarkup } from './render.js';
 import { loadSettings, saveSettings, readForm, writeForm, DEFAULTS } from './settings.js';
 import { bindInput } from './input.js';
 import { Sfx } from './audio.js';
-import { Music } from './music.js';
+import { Music, PRESETS } from './music.js';
 import { ITEMS } from './items.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -20,6 +20,7 @@ sfx.setAmbient(settings.ambience);
 const music = new Music(sfx);
 music.setEnabled(settings.music && settings.sound);
 music.setVolume(settings.musicVolume / 100);
+music.setPreset(settings.musicTheme);
 
 const el = {
   screens: $$('.screen'),
@@ -83,6 +84,7 @@ function hideOverlays() {
 function startGame() {
   hideOverlays();
   music.duck(1, 0.6);
+  if (settings.musicTheme === 'random') music.setPreset('random');
   if (!renderer) renderer = new Renderer(el.canvas, el.entities, el.vignette);
   if (game) game.abort();
   game = new Game(settings);
@@ -236,13 +238,14 @@ function openSettings() {
 }
 
 function applySettings() {
-  settings = readForm(el.form);
+  settings = readForm(el.form, settings);
   saveSettings(settings);
   sfx.setEnabled(settings.sound);
   sfx.setVolume(settings.volume / 100);
   sfx.setAmbient(settings.ambience);
   music.setEnabled(settings.music && settings.sound);
   music.setVolume(settings.musicVolume / 100);
+  music.setPreset(settings.musicTheme);
   if (settings.sound) music.start();
   if (settings.sound && current === 'game') { sfx.startDrone(); sfx.startAmbience(tension); }
   if (game) {
@@ -309,6 +312,11 @@ bindInput({
   onUse: (slot) => game.useItem(slot),
   onPause: () => togglePause(el.pause.hidden),
 });
+
+// ——— список музыкальных тем ———
+el.form.querySelector('[name="musicTheme"]').innerHTML =
+  `<option value="random">Случайная — своя на каждую ночь</option>` +
+  PRESETS.map((p) => `<option value="${p.id}">${p.name} — ${p.about}</option>`).join('');
 
 // ——— справка по предметам ———
 $('#item-legend').innerHTML = Object.values(ITEMS)

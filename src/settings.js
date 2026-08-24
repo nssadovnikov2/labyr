@@ -17,6 +17,7 @@ export const DEFAULTS = {
   ambience: true,
   music: true,
   musicVolume: 55,
+  musicTheme: 'random',
   seed: '',
 };
 
@@ -35,45 +36,54 @@ export function saveSettings(s) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* приватный режим — переживём */ }
 }
 
-/** Читает значения из формы настроек. */
-export function readForm(root) {
-  const val = (name) => root.querySelector(`[name="${name}"]`);
+/**
+ * Читает значения из формы настроек. Если браузер подсунул закэшированный
+ * index.html без какого-то поля, берём прежнее значение, а не мусор.
+ */
+export function readForm(root, prev = DEFAULTS) {
+  const el = (name) => root.querySelector(`[name="${name}"]`);
+  const bool = (name) => { const e = el(name); return e ? e.checked : prev[name]; };
+  const num = (name) => { const e = el(name); return e ? +e.value : prev[name]; };
+  const str = (name) => { const e = el(name); return e ? e.value : prev[name]; };
   return {
-    fog: val('fog').checked,
-    fogRadius: +val('fogRadius').value,
-    ai: +val('ai').value,
-    difficulty: val('difficulty').value,
-    size: +val('size').value,
-    braid: +val('braid').value,
-    itemDensity: +val('itemDensity').value,
-    exitAt: val('exitAt').value,
-    zoom: val('zoom').value,
-    fearFx: val('fearFx').checked,
-    sound: val('sound').checked,
-    volume: +val('volume').value,
-    ambience: val('ambience').checked,
-    music: val('music').checked,
-    musicVolume: +val('musicVolume').value,
-    seed: val('seed').value.trim(),
+    fog: bool('fog'),
+    fogRadius: num('fogRadius'),
+    ai: num('ai'),
+    difficulty: str('difficulty'),
+    size: num('size'),
+    braid: num('braid'),
+    itemDensity: num('itemDensity'),
+    exitAt: str('exitAt'),
+    zoom: str('zoom'),
+    fearFx: bool('fearFx'),
+    sound: bool('sound'),
+    volume: num('volume'),
+    ambience: bool('ambience'),
+    music: bool('music'),
+    musicVolume: num('musicVolume'),
+    musicTheme: str('musicTheme'),
+    seed: (str('seed') || '').trim(),
   };
 }
 
 export function writeForm(root, s) {
-  const val = (name) => root.querySelector(`[name="${name}"]`);
-  val('fog').checked = s.fog;
-  val('fogRadius').value = s.fogRadius;
-  val('ai').value = s.ai;
-  val('difficulty').value = s.difficulty;
-  val('size').value = s.size;
-  val('braid').value = s.braid;
-  val('itemDensity').value = s.itemDensity;
-  val('exitAt').value = s.exitAt;
-  val('zoom').value = s.zoom;
-  val('fearFx').checked = s.fearFx;
-  val('sound').checked = s.sound;
-  val('volume').value = s.volume;
-  val('ambience').checked = s.ambience;
-  val('music').checked = s.music;
-  val('musicVolume').value = s.musicVolume;
-  val('seed').value = s.seed || '';
+  const el = (name) => root.querySelector(`[name="${name}"]`);
+  const set = (name, value, prop = 'value') => { const e = el(name); if (e) e[prop] = value; };
+  set('fog', s.fog, 'checked');
+  set('fogRadius', s.fogRadius);
+  set('ai', s.ai);
+  set('difficulty', s.difficulty);
+  set('size', s.size);
+  set('braid', s.braid);
+  set('itemDensity', s.itemDensity);
+  set('exitAt', s.exitAt);
+  set('zoom', s.zoom);
+  set('fearFx', s.fearFx, 'checked');
+  set('sound', s.sound, 'checked');
+  set('volume', s.volume);
+  set('ambience', s.ambience, 'checked');
+  set('music', s.music, 'checked');
+  set('musicVolume', s.musicVolume);
+  set('musicTheme', s.musicTheme);
+  set('seed', s.seed || '');
 }

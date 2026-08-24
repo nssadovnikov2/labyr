@@ -41,7 +41,7 @@
 
         <label class="field switch-field">
           <span class="field-name">Туман войны</span>
-          <input type="checkbox" name="fog" role="switch">
+          <input type="checkbox" name="fog" role="switch" checked>
           <span class="switch"></span>
         </label>
 
@@ -61,7 +61,7 @@
           <span class="field-name">Сложность</span>
           <select name="difficulty">
             <option value="easy">Лёгкая — 3 клетки за ход, слух 10</option>
-            <option value="normal">Нормальная — 4 клетки, слух 29, берут след</option>
+            <option value="normal">Нормальная — 4 клетки, слух 29</option>
             <option value="nightmare">Кошмар — 4 клетки, видят всегда</option>
           </select>
         </label>
@@ -111,13 +111,13 @@
 
         <label class="field switch-field">
           <span class="field-name">Страх и тоннельное зрение</span>
-          <input type="checkbox" name="fearFx" role="switch">
+          <input type="checkbox" name="fearFx" role="switch" checked>
           <span class="switch"></span>
         </label>
 
         <label class="field switch-field">
           <span class="field-name">Звук</span>
-          <input type="checkbox" name="sound" role="switch">
+          <input type="checkbox" name="sound" role="switch" checked>
           <span class="switch"></span>
         </label>
 
@@ -128,20 +128,25 @@
 
         <label class="field switch-field">
           <span class="field-name">Атмосферные звуки</span>
-          <input type="checkbox" name="ambience" role="switch">
+          <input type="checkbox" name="ambience" role="switch" checked>
           <span class="switch"></span>
         </label>
 
         <label class="field switch-field">
           <span class="field-name">Музыка</span>
-          <input type="checkbox" name="music" role="switch">
+          <input type="checkbox" name="music" role="switch" checked>
           <span class="switch"></span>
+        </label>
+
+        <label class="field">
+          <span class="field-name">Тема</span>
+          <select name="musicTheme"></select>
+          <span class="field-hint">Ноты собираются на лету, поэтому одна тема звучит по-разному</span>
         </label>
 
         <label class="field">
           <span class="field-name">Громкость музыки <output name="musicVolumeOut">55</output></span>
           <input type="range" name="musicVolume" min="0" max="100" step="5">
-          <span class="field-hint">Гитара и хор синтезируются на лету, тема каждый раз чуть другая</span>
         </label>
 
         <label class="field">
