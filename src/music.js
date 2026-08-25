@@ -182,7 +182,9 @@ export class Music {
 
     this.bus = ctx.createGain();
     this.bus.gain.value = this.volume * this._duck;
-    this.bus.connect(this.sfx.master);
+    // в шину мира, а не в мастер: страх гасит музыку тем же рычагом,
+    // что и шорохи с дроном — одна ручка вместо двух
+    this.bus.connect(this.sfx.world);
 
     // отправка в общий ревербератор — музыка звучит в том же помещении
     this.wetGain = ctx.createGain();

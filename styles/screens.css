@@ -202,6 +202,110 @@ kbd {
   .night-n { font-size: 22px; }
 }
 
+/* ——— заставка ночи ——— */
+#screen-night.active {
+  align-items: stretch; justify-content: center;
+  padding: 0; overflow: hidden;
+}
+.night-splash {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center; gap: clamp(16px, 4vw, 56px);
+  width: min(1180px, 100%); margin: 0 auto;
+  padding: clamp(20px, 4vh, 56px) clamp(20px, 5vw, 64px);
+  max-height: 100vh; overflow: auto;
+}
+
+.ns-art { position: relative; display: grid; place-items: center; min-height: 0; }
+.ns-face {
+  position: relative;   /* перебиваем absolute у .ent */
+  font-size: clamp(180px, 34vmin, 420px);
+  width: 1em; height: 1em;
+  filter: drop-shadow(0 0 40px rgba(0, 0, 0, .9));
+  animation: ns-breathe 6s ease-in-out infinite;
+}
+@keyframes ns-breathe { 50% { transform: translateY(-1.5%) scale(1.015); } }
+.ns-face .a-aura { opacity: .5; }
+
+.ns-num {
+  position: absolute; left: 50%; bottom: -2%;
+  transform: translateX(-50%);
+  font-family: var(--display); font-size: clamp(120px, 26vmin, 300px);
+  line-height: 1; color: rgba(255, 255, 255, .05);
+  text-shadow: 0 0 60px rgba(190, 30, 30, .25);
+  pointer-events: none; user-select: none;
+}
+
+.ns-body { min-width: 0; }
+.ns-kicker {
+  font-size: 11px; letter-spacing: .38em; text-transform: uppercase;
+  color: var(--red); margin-bottom: 10px;
+}
+.ns-title {
+  margin: 0; font-family: var(--display); font-weight: 400;
+  font-size: clamp(38px, 7vw, 72px); letter-spacing: .04em; color: #d8d2c8;
+  text-shadow: 0 0 26px rgba(192, 57, 43, .4);
+}
+.ns-tagline {
+  margin: 4px 0 18px; color: var(--dim);
+  font-size: 13px; letter-spacing: .16em; text-transform: lowercase;
+}
+.ns-text {
+  max-height: min(46vh, 460px); overflow: auto;
+  padding-right: 8px;
+  border-left: 1px solid var(--line); padding-left: 18px;
+}
+.ns-text p {
+  margin: 0 0 11px; font-size: 14px; line-height: 1.72; color: #a9afbb;
+}
+.ns-text p:first-child::first-letter {
+  font-family: var(--display); font-size: 2.6em; float: left;
+  line-height: .8; margin: .06em .1em 0 0; color: var(--red);
+}
+.ns-text p:last-child { margin-bottom: 0; color: #c6ccd8; }
+
+.ns-meta {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 18px 0 0; padding: 0;
+}
+.ns-meta li {
+  padding: 5px 11px; border: 1px solid var(--line-2); border-radius: 999px;
+  font-size: 11px; letter-spacing: .1em; color: var(--dim);
+}
+.ns-meta li.accent { border-color: var(--red); color: #ffb9ad; }
+.ns-meta li.good { border-color: rgba(89, 242, 164, .45); color: #8fe3ba; }
+
+.ns-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.ns-actions .btn { min-width: 170px; }
+
+/* эпилог: свет ушёл, морда отвернулась */
+#screen-night.outro .ns-face { filter: grayscale(.7) brightness(.5) blur(1px); animation: none; }
+#screen-night.outro .ns-kicker { color: var(--green); }
+#screen-night.outro .ns-title { text-shadow: 0 0 26px rgba(89, 242, 164, .3); }
+#screen-night.outro .ns-text p:first-child::first-letter { color: var(--green); }
+
+@media (max-width: 900px) {
+  .night-splash {
+    grid-template-columns: 1fr; gap: 0;
+    align-content: start; padding-top: clamp(16px, 3vh, 32px);
+  }
+  /* на узком экране морда уходит фоном под текст */
+  .ns-art {
+    position: absolute; inset: 0; z-index: 0;
+    opacity: .22; pointer-events: none;
+  }
+  .ns-face { font-size: min(70vmin, 380px); }
+  .ns-num { font-size: 34vmin; bottom: 6%; }
+  .ns-body { position: relative; z-index: 1; }
+  .ns-text { max-height: none; overflow: visible; }
+}
+
+@media (max-width: 520px) {
+  .ns-text { border-left: 0; padding-left: 0; }
+  .ns-text p { font-size: 13.5px; }
+  .ns-actions .btn { flex: 1; min-width: 140px; }
+}
+
 /* ——— оверлеи ——— */
 .overlay {
   position: fixed; inset: 0; z-index: 20;

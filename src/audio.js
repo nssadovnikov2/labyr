@@ -8,6 +8,10 @@ const LVL = {
   scrape: 3.72, chains: 4.29, cry: 5.72, breath: 4.29, bang: 1.43, whisper: 11.44, creak: 28.6,
 };
 
+// Общий подъём громкости: пики ловит лимитер, поэтому можно не жаться.
+const MASTER_PUSH = 1.9;
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
 
@@ -21,6 +25,9 @@ export class Sfx {
     this.droneOn = false;
     this.ambientOn = false;
     this._ambTimer = null;
+    this.heartOn = false;
+    this.heartLevel = 0;
+    this.dreadDist = null;
     this._noiseCache = new Map();
   }
 
@@ -32,9 +39,24 @@ export class Sfx {
       const ctx = new AC();
       this.ctx = ctx;
 
+      // Лимитер на выходе: позволяет держать всё заметно громче, не боясь пиков.
+      // Без него приходилось выкручивать системную громкость на максимум.
+      this.limiter = ctx.createDynamicsCompressor();
+      this.limiter.threshold.value = -10;
+      this.limiter.knee.value = 6;
+      this.limiter.ratio.value = 12;
+      this.limiter.attack.value = 0.003;
+      this.limiter.release.value = 0.18;
+      this.limiter.connect(ctx.destination);
+
       this.master = ctx.createGain();
-      this.master.gain.value = this.volume;
-      this.master.connect(ctx.destination);
+      this.master.gain.value = this.volume * MASTER_PUSH;
+      this.master.connect(this.limiter);
+
+      // Всё, кроме сердца и финальной ноты, идёт через шину мира — её гасит страх.
+      this.world = ctx.createGain();
+      this.world.gain.value = 1;
+      this.world.connect(this.master);
 
       // общая «комната»: длинный тёмный хвост, чтобы звуки казались далёкими
       this.verb = ctx.createConvolver();
@@ -46,7 +68,7 @@ export class Sfx {
       verbLp.frequency.value = 2600;
       this.verb.connect(verbLp);
       verbLp.connect(this.verbGain);
-      this.verbGain.connect(this.master);
+      this.verbGain.connect(this.world);
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
@@ -54,13 +76,13 @@ export class Sfx {
 
   setEnabled(on) {
     this.enabled = on;
-    if (!on) { this.stopDrone(); this.stopAmbience(); }
-    if (this.master) this.master.gain.value = on ? this.volume : 0;
+    if (!on) { this.stopDrone(); this.stopAmbience(); this._stopHeart(); this.stopFlatline(); }
+    if (this.master) this.master.gain.value = on ? this.volume * MASTER_PUSH : 0;
   }
 
   setVolume(v) {
     this.volume = Math.max(0, Math.min(1, v));
-    if (this.master && this.enabled) this.master.gain.value = this.volume;
+    if (this.master && this.enabled) this.master.gain.value = this.volume * MASTER_PUSH;
   }
 
   setAmbient(on) {
@@ -127,6 +149,16 @@ export class Sfx {
     return ws;
   }
 
+  /** Мимо шины мира: то, что должно звучать даже в полной тишине страха. */
+  _outDirect(node, wet = 0.3) {
+    const dry = this._gain(1 - wet * 0.6);
+    node.connect(dry);
+    dry.connect(this.master);
+    const send = this._gain(wet);
+    node.connect(send);
+    send.connect(this.verb);
+  }
+
   /** Подключает источник к сухому и «дальнему» (реверб) выходам, с панорамой. */
   _out(node, wet = 0.35, pan = 0) {
     const ctx = this.ctx;
@@ -139,7 +171,7 @@ export class Sfx {
     }
     const dry = this._gain(1 - wet * 0.6);
     tail.connect(dry);
-    dry.connect(this.master);
+    dry.connect(this.world);
     const send = this._gain(wet);
     tail.connect(send);
     send.connect(this.verb);
@@ -197,6 +229,117 @@ export class Sfx {
     this.chains(0.7);
   }
 
+  /**
+   * Один удар сердца. Низкая синусоида — «тело» удара, полосовой шум около 170 Гц —
+   * то единственное, что вообще слышно на телефонном динамике.
+   */
+  _thump(level, when, strength = 1) {
+    const ctx = this.ctx;
+    const bus = this._gain(1);
+
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(66, when);
+    o.frequency.exponentialRampToValueAtTime(38, when + 0.16);
+    const og = this._gain(0.0001);
+    og.gain.exponentialRampToValueAtTime(Math.max(0.001, 0.55 * level * strength), when + 0.012);
+    og.gain.exponentialRampToValueAtTime(0.0001, when + 0.3);
+    o.connect(og); og.connect(bus);
+
+    const n = this._noiseSrc(0.2);
+    const bp = this._filter('bandpass', rnd(155, 185), 1.6);
+    const ng = this._gain(0.0001);
+    ng.gain.exponentialRampToValueAtTime(Math.max(0.001, 0.3 * level * strength), when + 0.01);
+    ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.2);
+    n.connect(bp); bp.connect(ng); ng.connect(bus);
+
+    bus.connect(this.master);
+    o.start(when); o.stop(when + 0.36);
+    n.start(when); n.stop(when + 0.25);
+  }
+
+  _startHeart() {
+    if (this.heartOn || !this.ctx) return;
+    this.heartOn = true;
+    const beat = () => {
+      if (!this.heartOn) return;
+      const lvl = this.heartLevel;
+      const now = this.ctx.currentTime + 0.02;
+      this._thump(lvl, now, 1);
+      this._thump(lvl, now + 0.17, 0.6);
+      const near = clamp01(1 - (this.dreadDist == null ? 30 : this.dreadDist) / 26);
+      const bpm = 54 + near * 96;
+      this._heartTimer = setTimeout(beat, 60000 / bpm);
+    };
+    beat();
+  }
+
+  _stopHeart() {
+    this.heartOn = false;
+    clearTimeout(this._heartTimer);
+    this._heartTimer = null;
+  }
+
+  /**
+   * Главный дирижёр: чем сильнее страх, тем тише становится весь мир —
+   * музыка, дрон, шорохи — и тем отчётливее слышно только сердце.
+   * Возвращает уровень «мира» 0..1, чтобы им же приглушить музыку.
+   */
+  setDread(fear, dist) {
+    const ctx = this.ensure();
+    if (!ctx) return 1;
+    this.dreadDist = dist;
+    const world = 1 - clamp01((fear - 0.4) / 0.35);
+    this.world.gain.setTargetAtTime(world, ctx.currentTime, 0.12);
+    this.heartLevel = clamp01((fear - 0.25) / 0.35);
+    if (this.heartLevel > 0.02) this._startHeart();
+    else this._stopHeart();
+    return world;
+  }
+
+  /** Сплошная нота, как на мониторе, когда сердце остановилось. */
+  flatline(dur = 6.5) {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    this._stopHeart();
+    this.stopFlatline();
+    const t0 = ctx.currentTime;
+    const bus = this._gain(0.0001);
+    bus.gain.exponentialRampToValueAtTime(0.2, t0 + 0.06);
+    bus.gain.setValueAtTime(0.2, t0 + dur - 1.4);
+    bus.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    bus.connect(this.master);
+    const oscs = [];
+    // две почти одинаковые частоты дают то самое биение монитора
+    for (const [f, g] of [[1000, 1], [1001.6, 0.55], [2000, 0.14]]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      const og = this._gain(g);
+      o.connect(og); og.connect(bus);
+      o.start(t0); o.stop(t0 + dur + 0.2);
+      oscs.push(o);
+    }
+    this._flat = { bus, oscs };
+  }
+
+  stopFlatline() {
+    if (!this._flat) return;
+    for (const o of this._flat.oscs) { try { o.stop(); } catch { /* уже */ } }
+    this._flat = null;
+  }
+
+  /** Полностью вернуть мир: после смерти, победы и выхода в меню. */
+  resetDread() {
+    this._stopHeart();
+    this.stopFlatline();
+    this.heartLevel = 0;
+    if (this.world && this.ctx) {
+      this.world.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.world.gain.setTargetAtTime(1, this.ctx.currentTime, 0.15);
+    }
+  }
+
   heartbeat(intensity = 1) {
     this.tone(52, 0.16, 'sine', 0.1 * intensity);
     setTimeout(() => this.tone(46, 0.2, 'sine', 0.08 * intensity), 170);
@@ -228,7 +371,7 @@ export class Sfx {
     const ng = this._gain(0.35);
     n.connect(bp); bp.connect(ng); ng.connect(bus);
     n.start(t0);
-    this._out(bus, 0.5);
+    this._outDirect(bus, 0.35);
     this.metalScrape(1.4, 0.15);
   }
 

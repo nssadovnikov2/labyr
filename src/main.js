@@ -6,7 +6,7 @@ import { bindInput } from './input.js';
 import { Sfx } from './audio.js';
 import { Music, PRESETS } from './music.js';
 import { ITEMS } from './items.js';
-import { NIGHTS, nightById, nightSettings, loadProgress, saveProgress, unlockedUpTo, markDone } from './campaign.js';
+import { NIGHTS, nightById, nightSettings, loadProgress, saveProgress, unlockedUpTo, markDone, loreParagraphs } from './campaign.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -52,6 +52,15 @@ const el = {
   jumpscare: $('#jumpscare'),
   form: $('#settings-form'),
   nightList: $('#night-list'),
+  nightScreen: $('#screen-night'),
+  nsFace: $('#ns-face'),
+  nsNum: $('#ns-num'),
+  nsKicker: $('#ns-kicker'),
+  nsTitle: $('#ns-title'),
+  nsTagline: $('#ns-tagline'),
+  nsText: $('#ns-text'),
+  nsMeta: $('#ns-meta'),
+  nsActions: $('#ns-actions'),
   nextNight: $('[data-action="next-night"]'),
 };
 
@@ -69,7 +78,8 @@ function showScreen(name) {
     if (renderer) renderer.stop();
     sfx.stopDrone();
     sfx.stopAmbience();
-    music.duck(1);
+    sfx.resetDread();
+      music.duck(1);
   } else if (renderer) {
     renderer.resize();
     renderer.start();
@@ -78,6 +88,17 @@ function showScreen(name) {
       sfx.startAmbience(tension);
     }
   }
+}
+
+/**
+ * Страх глушит весь мир и выводит вперёд сердцебиение: на пике тоннельного зрения
+ * не остаётся ни музыки, ни шорохов — только удары, всё чаще по мере приближения.
+ */
+function applyDread() {
+  if (!game || !settings.sound) return;
+  const fear = settings.fearFx === false ? 0 : game.fear;
+  const dist = game.nearestAiDistance();
+  sfx.setDread(fear, isFinite(dist) ? dist : 40);
 }
 
 /** 0..1 — насколько близко подобрались аниматроники. Управляет плотностью атмосферы. */
@@ -101,6 +122,7 @@ function hideOverlays() {
 function startGame(night = null) {
   hideOverlays();
   music.duck(1, 0.6);
+  sfx.resetDread();
   if (settings.musicTheme === 'random') music.setPreset('random');
   if (!renderer) renderer = new Renderer(el.canvas, el.entities, el.vignette);
   if (game) game.abort();
@@ -126,12 +148,7 @@ function wireGame(g) {
   g.on('pickup', () => sfx.pickup());
   g.on('use', () => sfx.use());
   g.on('toast', ({ text, color }) => toast(text, color));
-  g.on('phase', (p) => {
-    if (p === 'player') {
-      const d = g.nearestAiDistance();
-      if (d <= 8) sfx.heartbeat(d <= 4 ? 1.4 : 0.8);
-    }
-  });
+  g.on('phase', () => applyDread());
   g.on('dodge', () => { sfx.dodge(); renderer.kick(2); });
   g.on('death', (killer) => showDeath(killer));
   g.on('win', (info) => showWin(info));
@@ -172,6 +189,7 @@ function updateHud() {
   else if (d <= 15) { level = 1; text = 'ОНИ БЛИЗКО'; }
   if (level > dangerLevel && game.phase !== 'dead') sfx.stinger(level);
   dangerLevel = level;
+  applyDread();
   el.danger.hidden = level === 0;
   el.danger.textContent = text;
   el.danger.dataset.level = level;
@@ -217,6 +235,8 @@ function showDeath(killer) {
   sfx.stopDrone();
   sfx.stopAmbience();
   music.duck(0, 0.25);
+  // сердце остановилось: сплошная нота держится всю сцену смерти
+  setTimeout(() => sfx.flatline(6.5), 700);
   renderer.kick(3);
   el.jumpscare.className = 'jumpscare type-' + (killer ? killer.type : 'freddy');
   el.jumpscare.innerHTML = animatronicMarkup();
@@ -227,24 +247,20 @@ function showDeath(killer) {
 }
 
 function showWin(info) {
+  sfx.resetDread();
   sfx.win();
   sfx.stopDrone();
   sfx.stopAmbience();
   music.duck(0.35, 1.2);
-  const turns = `${info.turns} ${plural(info.turns, 'ход', 'хода', 'ходов')}`;
   if (currentNight) {
-    const first = !progress.done[currentNight.n];
-    progress = markDone(progress, currentNight.n, info.turns);
-    const next = nightById(currentNight.n + 1);
-    el.nextNight.hidden = !next;
-    el.winSub.textContent = next
-      ? `${currentNight.name} пройдена за ${turns}. Дальше — ${next.name.toLowerCase()}: ${next.size}×${next.size}, ${next.ai} ${plural(next.ai, 'аниматроник', 'аниматроника', 'аниматроников')}.`
-      : `${currentNight.name} пройдена за ${turns}. Это была последняя.`;
-    if (!first) el.winSub.textContent += ' Рекорд обновлён.';
-  } else {
-    el.nextNight.hidden = true;
-    el.winSub.textContent = `Ты выбрался за ${turns}. Лабиринт ${game.w}×${game.h}, ID ${game.seedText}.`;
+    const night = currentNight;
+    progress = markDone(progress, night.n, info.turns);
+    setTimeout(() => showNightSplash(night, 'outro', info.turns), 900);
+    return;
   }
+  const turns = `${info.turns} ${plural(info.turns, 'ход', 'хода', 'ходов')}`;
+  el.nextNight.hidden = true;
+  el.winSub.textContent = `Ты выбрался за ${turns}. Лабиринт ${game.w}×${game.h}, ID ${game.seedText}.`;
   el.win.hidden = false;
 }
 
@@ -253,6 +269,61 @@ function plural(n, one, few, many) {
   if (m10 === 1 && m100 !== 11) return one;
   if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
   return many;
+}
+
+// ——— заставка ночи ———
+let splashNight = null;
+
+function chip(text, cls = '') {
+  return `<li${cls ? ` class="${cls}"` : ''}>${text}</li>`;
+}
+
+/** mode: 'intro' — перед ночью, 'outro' — после победы. */
+function showNightSplash(night, mode, turns = 0) {
+  splashNight = night;
+  const intro = mode === 'intro';
+  el.nightScreen.classList.toggle('outro', !intro);
+
+  el.nsFace.className = `ns-face ent-ai type-${night.face}`;
+  el.nsFace.innerHTML = animatronicMarkup();
+  el.nsNum.textContent = night.n;
+  el.nsTitle.textContent = night.name;
+  el.nsKicker.textContent = intro ? `Ночь ${night.n} из ${NIGHTS.length}` : 'Ночь пройдена';
+  el.nsTagline.textContent = intro ? night.tagline : '';
+  el.nsTagline.hidden = !intro;
+
+  const text = intro ? night.lore : night.epilogue;
+  el.nsText.innerHTML = loreParagraphs(text).map((p) => `<p>${p}</p>`).join('');
+  el.nsText.scrollTop = 0;
+
+  const best = progress.done[night.n];
+  const diff = DIFFICULTY[night.difficulty];
+  if (intro) {
+    el.nsMeta.innerHTML =
+      chip(`${night.size}×${night.size}`) +
+      chip(`${night.ai} ${plural(night.ai, 'аниматроник', 'аниматроника', 'аниматроников')}`) +
+      chip(diff.label, 'accent') +
+      chip(`обзор ${night.fogRadius}`) +
+      (best ? chip(`рекорд ${best} ${plural(best, 'ход', 'хода', 'ходов')}`, 'good') : '');
+  } else {
+    el.nsMeta.innerHTML =
+      chip(`${turns} ${plural(turns, 'ход', 'хода', 'ходов')}`, 'good') +
+      (best && best !== turns ? chip(`рекорд ${best}`, 'good') : '') +
+      chip(`${night.size}×${night.size}`) +
+      chip(diff.label);
+  }
+
+  const next = nightById(night.n + 1);
+  el.nsActions.innerHTML = intro
+    ? `<button class="btn btn-primary" data-action="night-start">Начать ночь</button>
+       <button class="btn btn-ghost" data-action="campaign">К списку ночей</button>`
+    : (next
+        ? `<button class="btn btn-primary" data-action="night-next">Следующая ночь</button>`
+        : `<button class="btn btn-primary" data-action="campaign">К списку ночей</button>`) +
+      `<button class="btn" data-action="night-again">Пройти заново</button>
+       <button class="btn btn-ghost" data-action="menu">В меню</button>`;
+
+  showScreen('night');
 }
 
 // ——— прохождение ———
@@ -280,7 +351,7 @@ el.nightList.addEventListener('click', (e) => {
   const li = e.target.closest('.night');
   if (!li || li.classList.contains('locked')) return;
   const night = nightById(+li.dataset.night);
-  if (night) { wakeAudio(); startGame(night); }
+  if (night) { wakeAudio(); showNightSplash(night, 'intro'); }
 });
 
 // ——— плеер в шапке ———
@@ -385,6 +456,14 @@ document.addEventListener('click', (e) => {
       renderCampaign();
       toast('Прогресс прохождения сброшен');
       break;
+    case 'night-start': if (splashNight) startGame(splashNight); break;
+    case 'night-again': if (splashNight) startGame(splashNight); break;
+    case 'night-next': {
+      const nxt = splashNight ? nightById(splashNight.n + 1) : null;
+      if (nxt) showNightSplash(nxt, 'intro');
+      else { renderCampaign(); showScreen('campaign'); }
+      break;
+    }
     case 'next-night': {
       const next = currentNight ? nightById(currentNight.n + 1) : null;
       if (next) startGame(next); else { renderCampaign(); showScreen('campaign'); }
