@@ -199,7 +199,7 @@ export class Music {
     const top = ctx.createBiquadFilter();
     top.type = 'lowpass'; top.frequency.value = 4800; top.Q.value = 0.7;
     this.guitarGain = ctx.createGain();
-    this.guitarGain.gain.value = 0.94;
+    this.guitarGain.gain.value = 1.22;
     body1.connect(body2); body2.connect(top); top.connect(this.guitarGain);
     this.guitarGain.connect(this.bus);
     this.guitarIn = body1;
@@ -210,7 +210,7 @@ export class Music {
     const sparkle = ctx.createBiquadFilter();
     sparkle.type = 'peaking'; sparkle.frequency.value = 2600; sparkle.Q.value = 1.2; sparkle.gain.value = 3.5;
     this.boxGain = ctx.createGain();
-    this.boxGain.gain.value = 0.72;
+    this.boxGain.gain.value = 0.5;
     hp.connect(sparkle); sparkle.connect(this.boxGain);
     this.boxGain.connect(this.bus);
     this.boxIn = hp;
@@ -375,7 +375,7 @@ export class Music {
     const ctx = this.ctx;
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.0001, when);
-    amp.gain.linearRampToValueAtTime(0.031 * level, when + dur * 0.45);
+    amp.gain.linearRampToValueAtTime(0.04 * level, when + dur * 0.45);
     amp.gain.linearRampToValueAtTime(0.0001, when + dur);
     amp.connect(this.padIn);
 
@@ -404,7 +404,7 @@ export class Music {
     const freq = 440 * Math.pow(2, (midi - 69) / 12);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(0.022, when + dur * 0.5);
+    g.gain.linearRampToValueAtTime(0.029, when + dur * 0.5);
     g.gain.linearRampToValueAtTime(0.0001, when + dur);
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = 700;
@@ -428,7 +428,7 @@ export class Music {
     o.frequency.exponentialRampToValueAtTime(36, when + 0.45);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.exponentialRampToValueAtTime(0.154 * level, when + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.2 * level, when + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, when + 1.1);
     o.connect(g); g.connect(this.bus);
     o.start(when); o.stop(when + 1.2);
@@ -451,7 +451,7 @@ export class Music {
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass'; bp.frequency.value = rnd(3200, 4800); bp.Q.value = 3;
     const g = ctx.createGain();
-    g.gain.value = 0.06 * level;
+    g.gain.value = 0.078 * level;
     src.connect(bp); bp.connect(g); g.connect(this.bus);
     src.start(when);
   }
