@@ -39,7 +39,7 @@ body { touch-action: manipulation; }
 
 .screen { position: absolute; inset: 0; display: none; }
 .screen.active { display: flex; }
-#screen-menu.active, #screen-settings.active, #screen-help.active {
+#screen-menu.active, #screen-settings.active, #screen-help.active, #screen-campaign.active {
   align-items: center;
   justify-content: center;
   padding: 20px;
@@ -169,7 +169,8 @@ body { touch-action: manipulation; }
   white-space: nowrap;
 }
 .dodge.ready { color: #ffd9d3; border-color: var(--red); box-shadow: 0 0 10px rgba(192, 57, 43, .35); }
-.dodge b { font-size: 11px; }
+.dodge b { font-size: 13px; line-height: 1; }
+.dodge.ready b { font-size: 15px; }
 
 /* лишний шаг от адреналина видно отдельно */
 .steps i.panic { background: #ff6a55; box-shadow: 0 0 10px rgba(255, 90, 70, .8); }
@@ -274,7 +275,7 @@ body { touch-action: manipulation; }
   .ptrack { max-width: 84px; min-width: 0; }
   .ptrack #track-name { display: none; }
   .player .pvol { width: 44px; }
-  .dodge span { display: none; }
+  .dodge .dlabel { display: none; }
 }
 
 @media (pointer: coarse), (max-width: 780px) {
@@ -290,7 +291,8 @@ body { touch-action: manipulation; }
   .hud-turn b { font-size: 13px; }
   .steps i { width: 8px; height: 8px; }
   .dodge { padding: 2px 6px; font-size: 9px; letter-spacing: .04em; }
-  .dodge b { font-size: 10px; }
+  .dodge b { font-size: 12px; }
+  .dodge.ready b { font-size: 14px; }
   #hud { gap: 8px; padding: 0 8px; }
   .hud-left, .hud-right { gap: 7px; }
 }
@@ -299,6 +301,8 @@ body { touch-action: manipulation; }
   .dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); }
   .inventory { max-width: 46vw; }
   .seed-label { display: none; }
+  /* номер ночи короткий и полезный — его оставляем */
+  .seed-label[data-campaign] { display: block; }
 }
 @media (max-height: 520px) and (orientation: landscape) {
   #controls { padding: 6px 10px; }

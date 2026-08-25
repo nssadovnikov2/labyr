@@ -5,7 +5,7 @@ export const DEFAULTS = {
   fog: true,
   fogRadius: 6,
   ai: 2,
-  difficulty: 'normal',
+  difficulty: 'nightmare',
   size: 100,
   braid: 40,
   itemDensity: 0.01,

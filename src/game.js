@@ -12,24 +12,46 @@ export const AI_TYPES = [
   { type: 'foxy', name: 'Фокси' },
 ];
 
-// sense — радиус слуха в клетках, scent — доля маршрутов патруля, ведущих в район игрока.
-// sense — радиус слуха в клетках; scent — вероятность «взять след» при смене
-// маршрута; stalkTurns — упорство на следу; patience — сколько ходов подряд
-// аниматроник гонится, прежде чем выдохнется и потеряет игрока.
+// Лестница сложностей. Нижняя ступень — «Кошмар»: аниматроники слышат игрока
+// всегда и отовсюду, легче не бывает. Выше — то, что хуже кошмара.
+//   sense      — радиус слуха в клетках
+//   speed      — клеток за ход
+//   patience   — сколько ходов подряд он гонится, прежде чем выдохнется
+//   dodgeCd    — перезарядка рывка в ходах
+//   stun       — на сколько ходов рывок сбивает его с ног
+//   adrenaline — даёт ли страх герою четвёртый шаг
+//   flank      — доля аниматроников, которые вместо погони режут путь к выходу
 export const DIFFICULTY = {
-  easy: { sense: 10, speed: 3, scent: 0.03, stalkTurns: 8, patience: 8, label: 'Лёгкая' },
-  normal: { sense: 29, speed: 4, scent: 0.07, stalkTurns: 12, patience: 12, label: 'Нормальная' },
-  nightmare: { sense: Infinity, speed: 4, scent: 1, stalkTurns: 999, patience: Infinity, label: 'Кошмар' },
+  nightmare: {
+    label: 'Кошмар', order: 1,
+    sense: Infinity, speed: 4, scent: 1, stalkTurns: 999,
+    patience: 20, dodgeCd: 8, stun: 2, adrenaline: true, flank: 0,
+    about: 'слышат отовсюду, но выдыхаются в погоне',
+  },
+  blood: {
+    label: 'Кровавая ночь', order: 2,
+    sense: Infinity, speed: 4, scent: 1, stalkTurns: 999,
+    patience: 34, dodgeCd: 10, stun: 2, adrenaline: true, flank: 0.5,
+    about: 'дольше не отстают, один режет путь к выходу',
+  },
+  golden: {
+    label: 'Золотой Фредди', order: 3,
+    sense: Infinity, speed: 5, scent: 1, stalkTurns: 999,
+    patience: Infinity, dodgeCd: 12, stun: 1, adrenaline: true, flank: 0.5,
+    about: '5 клеток за ход, не выдыхаются никогда',
+  },
+  eternal: {
+    label: 'Вечная ночь', order: 4,
+    sense: Infinity, speed: 5, scent: 1, stalkTurns: 999,
+    patience: Infinity, dodgeCd: 14, stun: 1, adrenaline: false, flank: 1,
+    about: 'без адреналина, все режут путь',
+  },
 };
 
 // Сколько ходов аниматроник не слышит игрока после того, как выдохся.
 const HUNT_RECOVERY = 6;
 
 const BASE_STEPS = 3;
-// Рывок: раз в столько ходов герой может проскочить мимо аниматроника.
-const DODGE_COOLDOWN = 8;
-// На столько ходов сбитый с ног аниматроник выбывает.
-const DODGE_STUN = 2;
 
 export class Game {
   constructor(settings) {
@@ -127,7 +149,8 @@ export class Game {
 
     // аниматроники
     const count = this.settings.ai;
-    const diff = DIFFICULTY[this.settings.difficulty] || DIFFICULTY.normal;
+    const diff = DIFFICULTY[this.settings.difficulty] || DIFFICULTY.nightmare;
+    this.diff = diff;
     const spots = [corners[lair]];
     for (const ri of rest) {
       if (spots.length >= count) break;
@@ -136,6 +159,7 @@ export class Game {
       spots.push(c);
     }
     const exitDist = bfsDist(this.maze, this.exitIdx);
+    this.exitDistField = exitDist;
     this.exitRegion = [];
     for (let i = 0; i < exitDist.length; i++) {
       if (exitDist[i] >= 3 && exitDist[i] <= 30) this.exitRegion.push(i);
@@ -150,6 +174,9 @@ export class Game {
       spots.push(c);
     }
 
+    // хотя бы один всегда идёт в лоб: если резать путь будут все,
+    // за игроком никто не погонится и его просто не поймают
+    const flankers = Math.min(count - 1, Math.round(count * diff.flank));
     this.ais = spots.slice(0, count).map((s, i) => ({
       ...AI_TYPES[i % AI_TYPES.length],
       id: i,
@@ -160,6 +187,7 @@ export class Game {
       scent: diff.scent,
       stalkTurns: diff.stalkTurns,
       patience: diff.patience,
+      flank: false,
       frozen: 0,
       mode: 'patrol',
       plan: 1 + ((rng() * 6) | 0),
@@ -167,10 +195,15 @@ export class Game {
       bestDist: Infinity,
       huntTurns: 0,
       lost: 0,
+      flankPlan: 0,
       target: -1,
       targetDist: null,
       lastIdx: -1,
     }));
+    // фланкеры — последние в списке, чтобы первый всегда шёл в лоб
+    for (let i = 0; i < flankers && i < this.ais.length; i++) {
+      this.ais[this.ais.length - 1 - i].flank = true;
+    }
   }
 
   _placeItems(rng) {
@@ -210,9 +243,10 @@ export class Game {
   playerIdx() { return this.idx(this.player.x, this.player.y); }
   /** На адреналине герой делает лишний шаг — иначе от погони не оторваться. */
   stepsPerTurn() {
+    const adrenaline = this.diff && this.diff.adrenaline !== false;
     return BASE_STEPS
       + (this.effects.haste > 0 ? 3 : 0)
-      + (this.fear >= 0.7 ? 1 : 0);
+      + (adrenaline && this.fear >= 0.7 ? 1 : 0);
   }
   fogRadius() {
     if (!this.settings.fog) return Infinity;
@@ -307,12 +341,12 @@ export class Game {
       blocker.x = x;
       blocker.y = y;
       blocker.lastIdx = this.idx(nx, ny);
-      blocker.frozen = DODGE_STUN;
+      blocker.frozen = this.diff.stun;
       blocker.mode = 'hunt';
       this.player.x = nx;
       this.player.y = ny;
       this.player.stepsLeft = 0;
-      this.dodge = DODGE_COOLDOWN;
+      this.dodge = this.diff.dodgeCd;
       this.fear = 1;
       this.calm = 0;
       this.distPlayer = bfsDist(this.maze, this.playerIdx());
@@ -477,8 +511,18 @@ export class Game {
         a.targetDist = bfsDist(this.maze, a.target);
         return;
       }
-      a.mode = 'hunt';
       a.stalk = 0;
+      // фланкер не бежит в лоб, а срезает и ждёт на пути к выходу
+      if (a.flank) {
+        a.mode = 'flank';
+        if (--a.flankPlan <= 0) {
+          a.flankPlan = 4;
+          a.target = this._cutoffCell();
+          a.targetDist = bfsDist(this.maze, a.target);
+        }
+        return;
+      }
+      a.mode = 'hunt';
       a.target = -1;
       a.targetDist = null;
       return;
@@ -557,6 +601,13 @@ export class Game {
     a.dir = choice.d;
     a.x += DX[choice.d];
     a.y += DY[choice.d];
+  }
+
+  /** Клетка на пути игрока к выходу, чуть впереди него — там его и ждут. */
+  _cutoffCell() {
+    const path = findPath(this.maze, this.playerIdx(), this.exitIdx, this.exitDistField);
+    if (!path.length) return this.exitIdx;
+    return path[Math.min(path.length - 1, 14)];
   }
 
   /** Куда пойдёт скучающий аниматроник: чаще случайная точка, иногда — стеречь выход. */

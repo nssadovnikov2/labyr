@@ -24,7 +24,8 @@
       <h1 class="logo" data-text="LABYR">LABYR</h1>
       <p class="logo-sub">пять ночей в лабиринте</p>
       <div class="menu-buttons">
-        <button class="btn btn-primary" data-action="new-game">Новая игра</button>
+        <button class="btn btn-primary" data-action="campaign">Прохождение</button>
+        <button class="btn" data-action="new-game">Свободная игра</button>
         <button class="btn" data-action="settings">Настройки</button>
         <button class="btn" data-action="help">Как играть</button>
       </div>
@@ -59,11 +60,8 @@
 
         <label class="field">
           <span class="field-name">Сложность</span>
-          <select name="difficulty">
-            <option value="easy">Лёгкая — 3 клетки за ход, слух 10</option>
-            <option value="normal">Нормальная — 4 клетки, слух 29</option>
-            <option value="nightmare">Кошмар — 4 клетки, видят всегда</option>
-          </select>
+          <select name="difficulty"></select>
+          <span class="field-hint">Легче «Кошмара» не бывает — с него всё и начинается</span>
         </label>
 
         <label class="field">
@@ -134,9 +132,9 @@
 
 
         <label class="field">
-          <span class="field-name">Сид (необязательно)</span>
+          <span class="field-name">ID лабиринта</span>
           <input type="text" name="seed" placeholder="пусто — случайный лабиринт" maxlength="24">
-          <span class="field-hint">Одинаковый сид — одинаковый лабиринт</span>
+          <span class="field-hint">Одинаковый ID — тот же самый лабиринт. Можно поделиться</span>
         </label>
       </form>
 
@@ -144,6 +142,23 @@
         <button class="btn btn-primary" data-action="settings-save">Сохранить</button>
         <button class="btn" data-action="settings-reset">Сбросить</button>
         <button class="btn btn-ghost" data-action="settings-back">Назад</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ПРОХОЖДЕНИЕ -->
+  <section id="screen-campaign" class="screen">
+    <div class="noise"></div>
+    <div class="panel wide">
+      <h2 class="panel-title">Прохождение</h2>
+      <p class="campaign-lead">
+        Семь ночей. Лабиринт каждой ночи всегда один и тот же — его можно выучить наизусть.
+        Растёт всё остальное: размер, число аниматроников и то, на что они способны.
+      </p>
+      <ul id="night-list" class="nights"></ul>
+      <div class="panel-actions">
+        <button class="btn" data-action="campaign-reset">Сбросить прогресс</button>
+        <button class="btn btn-ghost" data-action="menu">Назад</button>
       </div>
     </div>
   </section>
@@ -159,12 +174,13 @@
            Удар в стену шаг не тратит. Пробел — закончить ход досрочно.
            Затем ходят аниматроники: до <b>4 клеток</b> каждый.</p>
         <p><b>Куда идти.</b> Зелёная стрелка у края экрана всегда показывает <i>направление</i> на выход — но не дорогу к нему. Дорогу покажет «Карта».</p>
-        <p><b>Они слышат.</b> Пока ты далеко — бродят по лабиринту и стерегут выход. Стоит подойти ближе радиуса слуха — идут точно на тебя. На нормальной сложности они вдобавок иногда чуют, в какой части лабиринта ты находишься, и берут туда курс.</p>
+        <p><b>Они всегда знают, где ты.</b> Легче «Кошмара» тут не бывает: на любой сложности аниматроники слышат тебя через весь лабиринт и идут напрямик. Разница в том, что бывает дальше — насколько долго они не отстают, с какой скоростью идут, режет ли кто-то из них путь к выходу и остаётся ли у тебя адреналин.</p>
         <p><b>Он перекрыл коридор.</b> Шагни прямо в него — герой проскочит мимо, поменявшись с ним местами и сбив его с ног на два хода. Такой рывок отнимает остаток хода и восстанавливается 8 ходов; пока он не готов, шаг в аниматроника — это смерть. Индикатор рывка виден в шапке рядом с шагами.</p>
         <p><b>Адреналин.</b> Когда они близко, страх даёт герою лишний, четвёртый шаг в ходу — иначе от погони не оторваться. А сам аниматроник в затяжной погоне выдыхается: побегав впустую с десяток ходов, он теряет след и уходит.</p>
         <p><b>Страх.</b> Когда аниматроник подбирается ближе, у героя сужается зрение: камера наезжает, края темнеют, его самого потряхивает. Видно меньше — зато морду того, кто пришёл, разглядишь во всех подробностях. Любая находка переключает внимание: страх спадает и обзор возвращается на пару ходов, даже если преследователь ещё рядом.</p>
         <p><b>Слушай.</b> Скрежет, цепи и плач становятся чаще и злее, когда они близко. Тишина — не всегда хороший знак.</p>
         <p><b>Музыка.</b> Плеер в шапке справа: стрелками переключаются пять тем, щелчок по названию выключает музыку, ползунок рядом — громкость. Каждая тема собирается из нот заново, поэтому дважды одинаково не звучит.</p>
+        <p><b>Прохождение.</b> Семь ночей с постоянными лабиринтами: карта каждой ночи всегда одна и та же, её можно выучить. Растёт всё остальное — размер, число аниматроников и сложность. Ночь открывается, когда пройдена предыдущая.</p>
         <p><b>Предметы</b> лежат в тупиках и коридорах. Подобранные применяются клавишами <b>1…6</b> или щелчком по слоту.</p>
         <ul class="legend" id="item-legend"></ul>
         <p class="help-keys">
@@ -186,7 +202,7 @@
       <div class="hud-left">
         <div class="hud-turn">ХОД <b id="turn-num">1</b></div>
         <div id="steps" class="steps"></div>
-        <div id="dodge" class="dodge" title="Рывок мимо аниматроника"><span>РЫВОК</span><b>—</b></div>
+        <div id="dodge" class="dodge" title="Рывок мимо аниматроника"><span class="dlabel">РЫВОК</span><b>»</b></div>
       </div>
       <div class="hud-center">
         <div id="status" class="status">Твой ход</div>
@@ -233,7 +249,7 @@
       <h2 class="panel-title">Пауза</h2>
       <div class="menu-buttons">
         <button class="btn btn-primary" data-action="resume">Продолжить</button>
-        <button class="btn" data-action="new-game">Начать заново</button>
+        <button class="btn" data-action="replay">Начать заново</button>
         <button class="btn" data-action="settings">Настройки</button>
         <button class="btn btn-ghost" data-action="menu">Выйти в меню</button>
       </div>
@@ -246,7 +262,7 @@
     <div class="blood"></div>
     <div class="you-died">YOU DIED</div>
     <div class="end-actions" id="death-actions">
-      <button class="btn btn-primary" data-action="new-game">Ещё одна ночь</button>
+      <button class="btn btn-primary" data-action="replay">Ещё одна попытка</button>
       <button class="btn btn-ghost" data-action="menu">В меню</button>
     </div>
   </div>
@@ -256,7 +272,8 @@
     <div class="you-escaped">YOU ESCAPED</div>
     <p class="win-sub" id="win-sub"></p>
     <div class="end-actions">
-      <button class="btn btn-primary" data-action="new-game">Ещё раз</button>
+      <button class="btn btn-primary" data-action="next-night" hidden>Следующая ночь</button>
+      <button class="btn" data-action="replay">Ещё раз</button>
       <button class="btn btn-ghost" data-action="menu">В меню</button>
     </div>
   </div>

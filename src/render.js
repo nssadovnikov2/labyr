@@ -319,7 +319,7 @@ export class Renderer {
       e.el.style.display = shown ? '' : 'none';
       if (!shown) continue;
       e.el.classList.toggle('ghost', !g.visible[i]);
-      e.el.classList.toggle('hunting', a.mode === 'hunt');
+      e.el.classList.toggle('hunting', a.mode === 'hunt' || a.mode === 'flank');
       e.el.classList.toggle('frozen', a.frozen > 0);
       place(e.el, this.ox + e.rx * ts, this.oy + e.ry * ts);
     }

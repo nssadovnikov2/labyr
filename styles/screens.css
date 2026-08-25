@@ -163,6 +163,45 @@ kbd {
   border-radius: 5px; font-family: var(--mono); font-size: 11px; color: var(--ink);
 }
 
+/* ——— прохождение ——— */
+.campaign-lead {
+  margin: -6px 0 18px; font-size: 13px; line-height: 1.6; color: #8e95a4;
+}
+.nights { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.night {
+  display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; align-items: center;
+  padding: 11px 14px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(255, 255, 255, .015);
+  transition: border-color .15s, background .15s, transform .1s;
+}
+.night-n {
+  font-family: var(--display); font-size: 26px; line-height: 1;
+  text-align: center; color: #3e4453;
+}
+.night-body b { display: block; font-size: 14px; color: var(--ink); }
+.night-body span { font-size: 11px; color: var(--dim); letter-spacing: .04em; }
+.night-state { font-size: 11px; color: var(--dim); text-align: right; white-space: nowrap; }
+
+.night.open { cursor: pointer; border-color: var(--red); background: rgba(160, 25, 20, .12); }
+.night.open:hover { background: rgba(160, 25, 20, .22); transform: translateX(3px); }
+.night.open .night-n { color: #ff8f7d; }
+.night.open .night-state { color: #ffb9ad; }
+
+.night.done { cursor: pointer; border-color: rgba(89, 242, 164, .3); }
+.night.done:hover { background: rgba(89, 242, 164, .08); transform: translateX(3px); }
+.night.done .night-n { color: var(--green); }
+.night.done .night-state { color: #7fcaa4; }
+
+.night.locked { opacity: .4; }
+.night.locked .night-state::before { content: '🔒 '; }
+
+@media (max-width: 520px) {
+  .night { grid-template-columns: 34px 1fr; gap: 10px; }
+  .night-state { grid-column: 2; text-align: left; }
+  .night-n { font-size: 22px; }
+}
+
 /* ——— оверлеи ——— */
 .overlay {
   position: fixed; inset: 0; z-index: 20;
