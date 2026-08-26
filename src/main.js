@@ -150,6 +150,11 @@ function wireGame(g) {
   g.on('toast', ({ text, color }) => toast(text, color));
   g.on('phase', () => applyDread());
   g.on('dodge', () => { sfx.dodge(); renderer.kick(2); });
+  g.on('stomp', () => { sfx.stomp(); renderer.kick(0.9); });
+  g.on('mode', (far) => {
+    toast(far ? 'Никого рядом — идёшь свободно' : 'Они близко — ход за ходом',
+      far ? '#8fa39a' : '#ff8f7d');
+  });
   g.on('death', (killer) => showDeath(killer));
   g.on('win', (info) => showWin(info));
 }
@@ -178,7 +183,7 @@ function updateHud() {
   el.dodge.querySelector('b').textContent = game.dodge <= 0 ? '»' : game.dodge;
 
   if (game.phase === 'ai') el.status.textContent = 'Они идут…';
-  else if (game.phase === 'player') el.status.textContent = 'Твой ход';
+  else if (game.phase === 'player') el.status.textContent = game.isFar() ? 'Свободный ход' : 'Твой ход';
   else el.status.textContent = '';
   el.status.classList.toggle('ai-turn', game.phase === 'ai');
 

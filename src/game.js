@@ -52,6 +52,9 @@ export const DIFFICULTY = {
 const HUNT_RECOVERY = 6;
 
 const BASE_STEPS = 3;
+// Пока ближайший аниматроник дальше этого, ход разрешается мгновенно:
+// пошаговая возня нужна только когда есть с кем считаться.
+const FAR_DISTANCE = 40;
 
 export class Game {
   constructor(settings) {
@@ -103,6 +106,7 @@ export class Game {
     this.fear = 0;
     this.calm = 0;
     this.dodge = 0;
+    this.wasFar = true;
     this.pathHint = [];
     this.log = [];
 
@@ -164,6 +168,25 @@ export class Game {
     for (let i = 0; i < exitDist.length; i++) {
       if (exitDist[i] >= 3 && exitDist[i] <= 30) this.exitRegion.push(i);
     }
+    // Ночь может потребовать, чтобы аниматроники стартовали ближе: на малых
+    // картах из дальнего угла они физически не успевают дойти до игрока.
+    const near = this.settings.aiSpawnDist;
+    if (near) {
+      spots.length = 0;
+      const ring = [];
+      for (let i = 0; i < distFromPlayer.length; i++) {
+        const d = distFromPlayer[i];
+        if (d >= near * 0.75 && d <= near * 1.25 && exitDist[i] >= 10) ring.push(i);
+      }
+      let g2 = 0;
+      while (spots.length < count && ring.length && g2++ < 3000) {
+        const i = ring[(rng() * ring.length) | 0];
+        const c = { x: i % w, y: (i / w) | 0 };
+        if (spots.some((sp) => Math.abs(sp.x - c.x) + Math.abs(sp.y - c.y) < 6)) continue;
+        spots.push(c);
+      }
+    }
+
     let guard = 0;
     while (spots.length < count && guard++ < 4000) {
       const i = (rng() * w * h) | 0;
@@ -327,22 +350,40 @@ export class Game {
       return false;
     }
     const nx = x + DX[dir], ny = y + DY[dir];
-    const blocker = this.ais.find((a) => a.x === nx && a.y === ny);
+    const blockers = this.ais.filter((a) => a.x === nx && a.y === ny);
 
-    // Аниматроник перекрыл коридор. Если рывок готов — проскакиваем мимо,
-    // меняясь с ним местами и сбивая его с ног; если нет — это конец.
-    if (blocker) {
+    if (blockers.length) {
+      const allDown = blockers.every((a) => a.frozen > 0);
+      if (allDown) {
+        // лежачего можно перешагнуть, а заодно приложить ещё раз
+        for (const a of blockers) a.frozen = Math.max(a.frozen, this.diff.stun);
+        this.player.x = nx;
+        this.player.y = ny;
+        this.player.stepsLeft--;
+        this.distPlayer = bfsDist(this.maze, this.playerIdx());
+        this.recomputeVision();
+        this._updateFear();
+        this.emit('stomp', blockers[0]);
+        this.emit('state');
+        if (this.player.stepsLeft <= 0) this.endTurn();
+        return true;
+      }
+
       if (this.dodge > 0) {
         this.player.x = nx;
         this.player.y = ny;
         this.recomputeVision();
-        return this._die(blocker);
+        return this._die(blockers.find((a) => a.frozen <= 0) || blockers[0]);
       }
-      blocker.x = x;
-      blocker.y = y;
-      blocker.lastIdx = this.idx(nx, ny);
-      blocker.frozen = this.diff.stun;
-      blocker.mode = 'hunt';
+
+      // рывок сбивает с ног всех, кто оказался в этой клетке
+      for (const a of blockers) {
+        a.x = x;
+        a.y = y;
+        a.lastIdx = this.idx(nx, ny);
+        a.frozen = this.diff.stun;
+        a.mode = 'hunt';
+      }
       this.player.x = nx;
       this.player.y = ny;
       this.player.stepsLeft = 0;
@@ -351,8 +392,13 @@ export class Game {
       this.calm = 0;
       this.distPlayer = bfsDist(this.maze, this.playerIdx());
       this.recomputeVision();
-      this.emit('dodge', blocker);
-      this.emit('toast', { text: `Рывок мимо ${blocker.name}!`, color: '#ffb9ad' });
+      this.emit('dodge', blockers[0]);
+      this.emit('toast', {
+        text: blockers.length > 1
+          ? `Рывок сквозь двоих!`
+          : `Рывок мимо ${blockers[0].name}!`,
+        color: '#ffb9ad',
+      });
       this.emit('state');
       this.endTurn();
       return true;
@@ -381,8 +427,8 @@ export class Game {
   endTurn() {
     if (this.phase !== 'player') return;
     this.player.stepsLeft = 0;
-    this.emit('state');
-    this._aiTurn();
+    if (this.isFar()) this._aiTurnFast();
+    else { this.emit('state'); this._aiTurn(); }
   }
 
   _pickup(i) {
@@ -422,6 +468,7 @@ export class Game {
       case 'haste':
         this.effects.haste = 3;
         this.player.stepsLeft += 3;
+        this.dodge = 0; // на адреналине рывок снова готов
         break;
       case 'radar':
         this.effects.radar = 5;
@@ -469,6 +516,32 @@ export class Game {
       if (this.aborted) return;
     }
 
+    this._endAiTurn();
+  }
+
+  /** Ход аниматроников без пауз — когда они далеко и смотреть не на что. */
+  _aiTurnFast() {
+    if (this.aborted) return;
+    this.phase = 'ai';
+    for (const a of this.ais) if (a.frozen <= 0) this._aiPlan(a);
+    const maxSteps = Math.max(...this.ais.map((a) => a.speed));
+    for (let step = 0; step < maxSteps; step++) {
+      for (const a of this.ais) {
+        if (a.frozen > 0 || step >= a.speed) continue;
+        this._stepAi(a);
+        if (a.x === this.player.x && a.y === this.player.y) {
+          this.recomputeVision();
+          this.emit('state');
+          return this._die(a);
+        }
+      }
+    }
+    this.recomputeVision();
+    this._updateFear();
+    this._endAiTurn();
+  }
+
+  _endAiTurn() {
     for (const a of this.ais) if (a.frozen > 0) a.frozen--;
     this.turn++;
     if (this.effects.path > 0) this.effects.path--;
@@ -480,8 +553,19 @@ export class Game {
 
     this.phase = 'player';
     this.player.stepsLeft = this.stepsPerTurn();
+    const far = this.isFar();
+    if (far !== this.wasFar) {
+      this.wasFar = far;
+      this.emit('mode', far);
+    }
     this.emit('phase', 'player');
     this.emit('state');
+  }
+
+  /** Никого поблизости — ход можно не разыгрывать, а просто идти. */
+  isFar() {
+    const d = this.nearestAiDistance();
+    return isFinite(d) ? d > FAR_DISTANCE : true;
   }
 
   /**
@@ -572,8 +656,10 @@ export class Game {
     const opts = [];
     for (const dir of DIRS) {
       if (!this.maze.open(a.x, a.y, dir)) continue;
-      const ni = this.idx(a.x + DX[dir], a.y + DY[dir]);
-      opts.push({ d: dir, ni });
+      const nx = a.x + DX[dir], ny = a.y + DY[dir];
+      // в одну клетку двоим не влезть: перепрыгнуть друг друга нельзя
+      if (this.ais.some((o) => o !== a && o.x === nx && o.y === ny)) continue;
+      opts.push({ d: dir, ni: this.idx(nx, ny) });
     }
     if (!opts.length) return;
 

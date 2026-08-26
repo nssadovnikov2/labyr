@@ -37,7 +37,7 @@ export const NIGHTS = [
   {
     n: 2, name: 'Вторая ночь',
     size: 60, ai: 1, difficulty: 'nightmare',
-    fogRadius: 8, braid: 48, itemDensity: 0.014, exitAt: 'other',
+    fogRadius: 8, braid: 62, itemDensity: 0.016, exitAt: 'other', aiSpawnDist: 105,
     face: 'freddy',
     tagline: 'План не сходится со зданием',
     lore: `Днём ты нашёл комплекс на старой карте города. Пятно застройки — сто двадцать
@@ -243,6 +243,7 @@ export function nightSettings(night, userSettings) {
     braid: night.braid,
     itemDensity: night.itemDensity,
     exitAt: night.exitAt,
+    aiSpawnDist: night.aiSpawnDist || 0,
     seed: nightSeed(night.n),
   };
 }

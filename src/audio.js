@@ -340,6 +340,31 @@ export class Sfx {
     }
   }
 
+  /** Наступить на лежачего аниматроника: хруст железа под ботинком. */
+  stomp() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const t0 = ctx.currentTime;
+    const bus = this._gain(1);
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(120, t0);
+    o.frequency.exponentialRampToValueAtTime(44, t0 + 0.14);
+    const og = this._gain(0.0001);
+    og.gain.exponentialRampToValueAtTime(0.24, t0 + 0.008);
+    og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
+    o.connect(og); og.connect(bus);
+    const n = this._noiseSrc(0.18);
+    const bp = this._filter('bandpass', rnd(1400, 2600), 3);
+    const ng = this._gain(0.0001);
+    ng.gain.exponentialRampToValueAtTime(0.2, t0 + 0.006);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+    n.connect(bp); bp.connect(ng); ng.connect(bus);
+    this._out(bus, 0.3);
+    o.start(t0); o.stop(t0 + 0.3);
+    n.start(t0); n.stop(t0 + 0.22);
+  }
+
   heartbeat(intensity = 1) {
     this.tone(52, 0.16, 'sine', 0.1 * intensity);
     setTimeout(() => this.tone(46, 0.2, 'sine', 0.08 * intensity), 170);
